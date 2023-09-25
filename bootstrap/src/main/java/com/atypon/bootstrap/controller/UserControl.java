@@ -24,7 +24,4 @@ public class UserControl {
         User user = userService.createAccount(userRequest);
         return new ResponseEntity<>(user, HttpStatus.OK);
     }
-
-    //Deya
-
 }
