@@ -14,7 +14,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -33,13 +32,13 @@ import java.util.Set;
 public class UserService {
     private final NodeService nodeService;
     private final RestTemplate restTemplate;
-    private IndexService indexService;
+    private IndexCash indexCash;
 
     @Autowired
-    public UserService(NodeService nodeService, RestTemplate restTemplate, IndexService indexService) {
+    public UserService(NodeService nodeService, RestTemplate restTemplate, IndexCash indexCash) {
         this.nodeService = nodeService;
         this.restTemplate = restTemplate;
-        this.indexService = indexService;
+        this.indexCash = indexCash;
         System.out.println("I'm Working NOW in UserServices!!");
     }
 
@@ -48,31 +47,31 @@ public class UserService {
             JSONObject collections = (JSONObject) new JSONParser().parse(
                     new FileReader("Database/".concat(dbName).concat(File.separator).concat("metadata.json"))
             );
-            indexService = new IndexService(dbName);
-            for (String collection: (Set<String>) collections.keySet()){
-                indexService.fillCollection((String) collections.get(collection), collection);
+            indexCash = new IndexCash(dbName);
+            for (String collection : (Set<String>) collections.keySet()) {
+                indexCash.fillCollection((String) collections.get(collection), collection);
             }
         } catch (IOException e) {
             throw new DatabaseException("Database Dose NOT Exists");
-        }catch (ParseException e){
-
+        } catch (ParseException ignore) {
+            //Ignore
         }
     }
 
-    public Document find(String collectionName, String property, String value){
+    public Document find(String collectionName, String property, String value) {
         Document document = new Document();
-        List<String> paths = indexService.getData(collectionName, property, value);
-        if(paths.isEmpty())
+        List<String> paths = indexCash.getData(collectionName, property, value);
+        if (paths.isEmpty())
             return null;
         document.setPath(paths.get(0));
         document.read();
         return document;
     }
 
-    public List<Document> findAll(String collectionName, String property, String value){
-        List<String> paths = indexService.getData(collectionName, property, value);
+    public List<Document> findAll(String collectionName, String property, String value) {
+        List<String> paths = indexCash.getData(collectionName, property, value);
         ArrayList<Document> documents = new ArrayList<>();
-        for (String path: paths) {
+        for (String path : paths) {
             Document document = new Document();
             document.setPath(path);
             document.read();
@@ -82,7 +81,7 @@ public class UserService {
     }
 
     public Document createDocument(Document document) {
-        if (!document.getPath().contains(indexService.getDatabaseName()))
+        if (!document.getPath().contains(indexCash.getDatabaseName()))
             throw new DatabaseException("Please Connect to " + document.getDatabaseName() + " First!");
         Node minAffinity = NodeService.getNodes().get(0);
         for (Node n : NodeService.getNodes()) {
@@ -101,12 +100,14 @@ public class UserService {
         }
         minAffinity.setAffinity(minAffinity.getAffinity() + 1);
         nodeService.createFile(document, minAffinity.getName());
-        indexService.indexDocument(document);
+        indexCash.indexDocument(document);
         return document;
     }
 
     public Collection createCollection(Collection collection) {
-        if (!collection.getDatabaseName().equals(indexService.getDatabaseName()))
+        if (collection.getDatabaseName() == null)
+            collection.setDatabaseName(indexCash.getDatabaseName());
+        if (!collection.getDatabaseName().equals(indexCash.getDatabaseName()))
             throw new DatabaseException("Please Connect to " + collection.getDatabaseName() + " First!");
         for (Node n : NodeService.getNodes()) {
             if (n.getId() != -1)
@@ -149,7 +150,7 @@ public class UserService {
         System.out.println(document.getPath());
         if (!new File(document.getPath()).exists())
             throw new DocumentException("Document Dose NOT Exists");
-        if (indexService.getIndex() == null || !document.getPath().contains(indexService.getDatabaseName()))
+        if (indexCash.getIndex() == null || !document.getPath().contains(indexCash.getDatabaseName()))
             throw new DatabaseException("Please Connect to " + document.getDatabaseName() + " First!");
         HttpEntity<Document> request = new HttpEntity<>(document);
         for (Node n : NodeService.getNodes()) {
@@ -161,13 +162,13 @@ public class UserService {
                 );
         }
         nodeService.deleteDocument(document);
-        indexService.unIndexDocument(document);
+        indexCash.unIndexDocument(document);
     }
 
     public void deleteCollection(Collection collection) {
         if (!new File(collection.getPath()).exists())
             throw new CollectionException("Collection Dose NOT Exists");
-        if (!collection.getDatabaseName().equals(indexService.getDatabaseName()))
+        if (!collection.getDatabaseName().equals(indexCash.getDatabaseName()))
             throw new DatabaseException("Please Connect to " + collection.getDatabaseName() + " First!");
         for (Node n : NodeService.getNodes()) {
             if (n.getId() != -1)
@@ -192,6 +193,7 @@ public class UserService {
             fileWriter.close();
         } catch (ParseException | IOException e) {
             e.printStackTrace();
+            //TODO
         }
     }
 
@@ -211,13 +213,18 @@ public class UserService {
         } catch (ParseException | IOException e) {
             System.out.println("Error here 206");
             e.printStackTrace();
+            //TODO
         }
     }
 
     //TODO Edit it And Create Unindexing Mechanisem
-    public ResponseEntity<?> modifyDocument(Document documentAfter, Document documentBefore) {
-        if (nodeService.modifyDocumentForOthers(documentAfter, documentBefore).getStatusCode().equals(HttpStatus.OK)) {
-            return new ResponseEntity<>(HttpStatus.OK);
+    public Document modifyDocument(Document documentAfter, Document documentBefore) {
+        if (indexCash.getDatabaseName() == null)
+            throw new DatabaseException("Please Connect to Database!!");
+        if (!documentBefore.getDatabaseName().equals(indexCash.getDatabaseName()))
+            throw new DatabaseException("Document Dose NOT Exists in \"" + indexCash.getDatabaseName() + "\" Database!!");
+        if (nodeService.modifyDocumentForOthers(documentAfter, documentBefore)) {
+            return documentAfter;
         } else {
             RestTemplate restTemplate = new RestTemplate();
             HashMap<String, Document> mp = new HashMap<>();
@@ -227,22 +234,36 @@ public class UserService {
                 if (n.getId() != -1 &&
                         (restTemplate.postForEntity(n.getAddress() + "node/modify-document",
                                 mp, HashMap.class).getStatusCode().equals(HttpStatus.ACCEPTED))) {
-                    return new ResponseEntity<>(HttpStatus.OK);
+                    return documentAfter;
                 }
             }
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            return documentBefore;
         }
     }
 
-    //TODO, Fill These Methods
     public List<String> getDatabases() {
-        return new ArrayList<>();
+        JSONParser parser = new JSONParser();
+        JSONObject object = new JSONObject();
+        try {
+            object = (JSONObject) parser.parse(new FileReader("Database/allDBs.json"));
+        } catch (IOException | ParseException e) {
+            //ignored
+        }
+        return new ArrayList<String>(object.keySet());
     }
 
     public List<String> getCollections() {
-        return new ArrayList<>();
+        if (indexCash.getDatabaseName() == null)
+            throw new DatabaseException("Please Connect To Database First!!");
+        JSONParser parser = new JSONParser();
+        JSONObject object = new JSONObject();
+        try {
+            String PATH = "Database/".concat(indexCash.getDatabaseName()).concat("/metadata.json");
+            object = (JSONObject) parser.parse(new FileReader(PATH));
+        } catch (IOException | ParseException e) {
+            //ignored
+        }
+        return new ArrayList<String>(object.keySet());
     }
-
-    //TODO, getDatabases(), getCollections()
 
 }

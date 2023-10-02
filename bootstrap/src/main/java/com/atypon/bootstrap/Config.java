@@ -101,7 +101,7 @@ public class Config {
             temp2 = new JSONObject();
             temp2.put("password", user.getPassword());
             temp2.put("role", user.getRole());
-            temp.put(user.getId(), temp2);
+            temp.put(user.getUsername(), temp2);
         }
         request.put("users", temp);
 
@@ -138,7 +138,7 @@ public class Config {
             temp2 = new JSONObject();
             temp2.put("password", user.getPassword());
             temp2.put("role", user.getRole());
-            temp.put(user.getId(), temp2);
+            temp.put(user.getUsername(), temp2);
         }
         request.put("users", temp);
 
@@ -176,7 +176,7 @@ public class Config {
             temp2 = new JSONObject();
             temp2.put("password", user.getPassword());
             temp2.put("role", user.getRole());
-            temp.put(user.getId(), temp2);
+            temp.put(user.getUsername(), temp2);
         }
         request.put("users", temp);
 

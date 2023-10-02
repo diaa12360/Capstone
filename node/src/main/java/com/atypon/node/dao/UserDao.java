@@ -18,7 +18,7 @@ public class UserDao {
         JSONObject users = (JSONObject) usersFile.getData().get(username);
         System.out.println(users);
         User user1 = null;
-        System.out.println(username + users.get("password"));
+        System.out.println(username + " " + users.get("password"));
         try {
             user1 =
                     new User(

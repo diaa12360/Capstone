@@ -12,8 +12,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.*;
-
 @Component
 @RestController
 @RequestMapping("/manage")
@@ -33,9 +31,9 @@ public class ManagementControl {
     }
 
     @PostMapping("/add-user")
-    public ResponseEntity<User> addUser(@RequestBody User user) throws IOException, ParseException {
+    public ResponseEntity<User> addUser(@RequestBody User user) {
         User newUser = service.addUser(user);
-        return new ResponseEntity<>(newUser, HttpStatus.CREATED);
+        return new ResponseEntity<>(newUser, HttpStatus.OK);
     }
 
 }

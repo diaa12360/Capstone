@@ -32,7 +32,7 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("*/auth/*", "*/node/*").permitAll()
+                        .requestMatchers("/auth/**", "/node/****", "/manage/**").permitAll()
                         .anyRequest().authenticated())
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
@@ -47,6 +47,8 @@ public class SecurityConfig {
         return authenticationProvider;
     }
 
+    // TODO, Create Role Admin.
+    // TODO, Make Password Encoder
     @Bean
     public PasswordEncoder passwordEncoder() {
         return NoOpPasswordEncoder.getInstance();

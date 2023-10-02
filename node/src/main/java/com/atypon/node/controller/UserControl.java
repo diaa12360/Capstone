@@ -1,39 +1,33 @@
 package com.atypon.node.controller;
 
-import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.model.Collection;
 import com.atypon.node.model.Document;
 import com.atypon.node.model.User;
 import com.atypon.node.service.UserService;
+import lombok.AllArgsConstructor;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import javax.print.Doc;
 import java.io.*;
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
 @RequestMapping("/user")
+@AllArgsConstructor
 public class UserControl {
-    private final UserService userService;
 
-    @Autowired
-    public UserControl(UserService userService) {
-        this.userService = userService;
-    }
+    private final UserService userService;
 
     @GetMapping("/login")
     public ResponseEntity<User> login(@RequestBody User user) throws IOException, ParseException {
         JSONParser parser = new JSONParser();
         JSONObject jsonObject = (JSONObject) parser.parse(new FileReader("nodeInfo.json"));
         JSONObject v1 = ((JSONObject) jsonObject.get("users"));
-        JSONObject v2 = (JSONObject) (v1.get(Long.toString(user.getId())));
+        JSONObject v2 = (JSONObject) (v1.get((user.getUsername())));
         String password = v2.get("password").toString();
         if (password.equals(user.getPassword())) {
             return new ResponseEntity<>(user, HttpStatus.OK);
@@ -74,7 +68,7 @@ public class UserControl {
     }
 
     @DeleteMapping("/delete-database")
-    public ResponseEntity deleteDatabase(@RequestParam String dbName) {
+    public ResponseEntity<?> deleteDatabase(@RequestParam String dbName) {
         userService.deleteDatabase(dbName);
         return new ResponseEntity<>(HttpStatus.OK);
     }

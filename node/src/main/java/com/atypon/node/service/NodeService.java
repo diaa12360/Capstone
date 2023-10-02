@@ -28,6 +28,7 @@ public class NodeService {
     private static Document nodeInfo = updatenNodeInfoFile();
     @Getter
     private static Document otherNodes = updateOtherNodesFile();
+
     public void createFile(Document document, String nodeName) {
         boolean amITheNode = nodeName.equals(nodeInfo.getData().get("name"));
         document.createFile(amITheNode);
@@ -60,9 +61,10 @@ public class NodeService {
 
     public void createDatabase(String name) {
         File file = new File("Database".concat(File.separator).concat(name));
-        if(file.exists())
+        if (file.exists())
             throw new DatabaseException("Database Is already Exists");
         file.mkdirs();
+        addDatabaseToJSONFile(name);
         file = new File(file.getPath().concat(File.separator).concat("metadata.json"));
         try {
             FileWriter writer = new FileWriter(file);
@@ -71,6 +73,27 @@ public class NodeService {
             writer.close();
         } catch (IOException e) {
             throw new DatabaseException("Check Create database");
+        }
+    }
+
+    private void addDatabaseToJSONFile(String dbName) {
+        JSONParser parser = new JSONParser();
+        JSONObject object = new JSONObject();
+        try {
+            object = (JSONObject) parser.parse(new FileReader("Database/allDBs.json"));
+        } catch (IOException e) {
+            //TODO
+        } catch (ParseException e) {
+            //TOD
+        }
+        object.put(dbName, "Database/" + dbName);
+        try {
+            FileWriter writer = new FileWriter("Database/allDBs.json");
+            writer.write(object.toJSONString());
+            writer.flush();
+            writer.close();
+        } catch (IOException e){
+            //TODO
         }
     }
 
@@ -148,7 +171,7 @@ public class NodeService {
         }
     }
 
-    public ResponseEntity<?> modifyDocumentForOthers(Document documentAfter, Document documentBefore) {
+    public boolean modifyDocumentForOthers(Document documentAfter, Document documentBefore) {
         File file = new File(documentAfter.getPath());
         if (file.canWrite()) {
             Document temp = new Document(documentBefore.getPath());
@@ -156,16 +179,17 @@ public class NodeService {
             if (temp.getData().equals(documentBefore.getData())) {
                 temp.write(documentAfter.getData());
                 sendModification(documentAfter);
-                return new ResponseEntity<>(HttpStatus.ACCEPTED);
+                return true;
             } else {
-                return new ResponseEntity<>(HttpStatus.LOCKED);
+                return false;
             }
         }
-        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        return false;
     }
 
+    //TODO, Implement this
     private void sendModification(Document documentAfter) {
-        //TODO Continue working on
+
     }
 
     private void unIndexDocument(Document document) {
@@ -187,7 +211,6 @@ public class NodeService {
         } catch (ParseException | IOException e) {
             //TODO, Add Exception;
             System.out.println("Error here 174");
-            e.printStackTrace();
         }
     }
 
@@ -203,7 +226,6 @@ public class NodeService {
             fileWriter.flush();
             fileWriter.close();
         } catch (ParseException | IOException e) {
-            e.printStackTrace();
         }
     }
 
@@ -222,7 +244,6 @@ public class NodeService {
             fileWriter.close();
         } catch (ParseException | IOException e) {
             System.out.println("Error here 206");
-            e.printStackTrace();
         }
     }
 
@@ -243,7 +264,6 @@ public class NodeService {
             }
         } catch (ParseException | IOException e) {
             System.out.println("Error here 227");
-            e.printStackTrace();
         }
     }
 
@@ -253,7 +273,7 @@ public class NodeService {
         Document otherNodes = new Document("nodeFiles/otherNodes.json");
         JSONObject thisNode = nodeInfo.read();
         JSONObject other = otherNodes.read();
-        if(thisNode == null || other == null)
+        if (thisNode == null || other == null)
             return nodeList;
         for (String key : (Set<String>) other.keySet()) {
             JSONObject nodeData = (JSONObject) other.get(key);
@@ -280,7 +300,7 @@ public class NodeService {
         document.setPath("nodeFiles/nodeInfo.json");
         File file = new File("nodeFiles");
         file.mkdir();
-        if(document.read() == null)
+        if (document.read() == null)
             System.out.println("null");
         nodeInfo = document;
         return document;
@@ -291,7 +311,7 @@ public class NodeService {
         document.setPath("nodeFiles/otherNodes.json");
         File file = new File("nodeFiles");
         file.mkdir();
-        if(document.read() == null)
+        if (document.read() == null)
             System.out.println("null");
         otherNodes = document;
         return document;

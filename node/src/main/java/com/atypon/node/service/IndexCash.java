@@ -4,21 +4,17 @@ import com.atypon.node.exception.CollectionException;
 import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.exception.DocumentException;
 import com.atypon.node.model.Document;
-import com.atypon.node.model.Node;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,11 +26,11 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
-public class IndexService {
+public class IndexCash {
     private String databaseName;
     private HashMap<String, HashMap<String, HashMap<String, ArrayList<String>>>> index;
 
-    public IndexService(String databaseName) {
+    public IndexCash(String databaseName) {
         this.databaseName = databaseName;
         index = new HashMap<>();
     }
@@ -60,7 +56,7 @@ public class IndexService {
         }
     }
 
-    public ArrayList<String> getData(String collection, String prop, String value) {
+    public List<String> getData(String collection, String prop, String value) {
         if (index == null)
             throw new DatabaseException("Please Connect to Database!!");
         else if (index.get(collection) == null)
@@ -83,11 +79,7 @@ public class IndexService {
         if (inner == null) {
             inner = new HashMap<>();
         }
-        HashMap<String, ArrayList<String>> thirdMap = inner.get(prop);
-        if (thirdMap == null) {
-            thirdMap = new HashMap<>();
-            inner.put(prop, thirdMap);
-        }
+        HashMap<String, ArrayList<String>> thirdMap = inner.computeIfAbsent(prop, k -> new HashMap<>()); // if the Inner Does NOT hashMap exist create new one.
         ArrayList<String> paths = thirdMap.get(value);
         if (paths == null)
             paths = new ArrayList<>();
@@ -128,7 +120,6 @@ public class IndexService {
         } catch (ParseException | IOException e) {
             //TODO: Add Exception;
             System.out.println("Error here 174");
-            e.printStackTrace();
         }
     }
 
@@ -150,7 +141,6 @@ public class IndexService {
             }
         } catch (ParseException | IOException e) {
             System.out.println("Error here 227");
-            e.printStackTrace();
         }
     }
 

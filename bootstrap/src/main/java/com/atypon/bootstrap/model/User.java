@@ -6,23 +6,25 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
 
+import java.io.Serializable;
+
 @Entity
 @Table
 @Data
-public class User {
+public class User implements Serializable {
     @Id
-    private Long id;
+    private String username;
     @Column
     private String password;
     @Column
-    private String nodeAddress;
-    @Column
     private String role;
+    @Column
+    private String nodeAddress;
 
     public User(){}
 
-    public User(Long id, String password, String nodeAddress) {
-        this.id = id;
+    public User(String username, String password, String nodeAddress) {
+        this.username = username;
         this.password = password;
         this.nodeAddress = nodeAddress;
     }

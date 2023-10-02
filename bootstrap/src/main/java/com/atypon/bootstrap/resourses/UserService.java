@@ -6,6 +6,9 @@ import com.atypon.bootstrap.model.User;
 import com.atypon.bootstrap.repositories.UserRepo;
 import org.json.simple.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,7 +32,7 @@ public class UserService {
 
 
     public User createAccount(@RequestBody User userRequest) {
-        if (userRepository.findById(userRequest.getId()).orElse(null) != null)
+        if (userRepository.findById(userRequest.getUsername()).orElse(null) != null)
             throw new UserException("User is already Exist!");
         Node minNode = nodes.get(0);
         for (Node n : nodes) {
@@ -42,11 +45,24 @@ public class UserService {
         JSONObject jsonObject = new JSONObject();
         JSONObject info = new JSONObject();
         info.put("password", userRequest.getPassword());
-        jsonObject.put(userRequest.getId(), info);
-        restTemplate.postForEntity(minNode.getAddress() + "manage/add-user", jsonObject.toJSONString(), String.class);
-        userRepository.save(userRequest);
-        minNode.getUsersList().add(userRequest);
-        return userRequest;
+//        jsonObject.put(userRequest.getUsername(), info);
+        jsonObject.put("username", userRequest.getUsername());
+        jsonObject.put("password", userRequest.getPassword());
+        jsonObject.put("role", userRequest.getRole());
+        jsonObject.put("nodeAddress", userRequest.getNodeAddress());
+        System.out.println(jsonObject);
+        System.out.println(userRequest);
+        User user = restTemplate.postForEntity(
+                minNode.getAddress() + "manage/add-user", jsonObject, User.class
+        ).getBody();
+        assert user != null;
+        userRepository.save(user);
+        minNode.getUsersList().add(user);
+        return user;
     }
 
+    public String getNodeUrl(String username) {
+        User user = userRepository.findById(username).orElseThrow();
+        return user.getNodeAddress();
+    }
 }
