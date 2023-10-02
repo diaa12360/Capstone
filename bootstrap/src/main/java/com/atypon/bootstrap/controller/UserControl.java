@@ -1,9 +1,8 @@
 package com.atypon.bootstrap.controller;
 
-import com.atypon.bootstrap.model.Node;
 import com.atypon.bootstrap.model.User;
+import com.atypon.bootstrap.resourses.Encryption;
 import com.atypon.bootstrap.resourses.UserService;
-import org.json.simple.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,8 +22,8 @@ public class UserControl {
 
     @PostMapping("/create-account")
     public ResponseEntity<User> createAccount(@RequestBody User userRequest) {
+        userRequest.setPassword(Encryption.encrypt(userRequest.getPassword()));
         User user = userService.createAccount(userRequest);
         return new ResponseEntity<>(user, HttpStatus.OK);
     }
-
 }
