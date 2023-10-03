@@ -4,7 +4,6 @@ import com.atypon.node.model.User;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -13,12 +12,10 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 
-@Component
 @Service
 public class BootstrappingService {
     public void getInfo(@RequestBody String s) throws ParseException {
         if(!NodeService.getNodes().isEmpty()) {
-            System.out.println("FUCKKKKK");
             return;
         }
         JSONParser parser = new JSONParser();
@@ -60,17 +57,25 @@ public class BootstrappingService {
         }
     }
 
-    public User addUser(@RequestBody User user) throws IOException, ParseException {
+    public User addUser(User user) {
         JSONParser parser = new JSONParser();
-        JSONObject userJSON = user.getDataAsJSON();
-        JSONObject object = (JSONObject) parser.parse(new FileReader("nodeFiles/users.json"));
-        object.putAll(userJSON);
-        System.out.println(user);
-        FileWriter fileWriter = new FileWriter("nodeInfo.json");
-        fileWriter.write(object.toJSONString());
-        fileWriter.flush();
-        fileWriter.close();
+        try {
+            JSONObject object = (JSONObject) parser.parse(new FileReader("nodeFiles/users.json"));
+            JSONObject temp = new JSONObject();
+            temp.put("password", user.getPassword());
+            temp.put("role", user.getRole());
+            temp.put("nodeAddress", user.getRole());
+            object.put(user.getUsername(), temp);
+            FileWriter fileWriter = new FileWriter("nodeFiles/users.json");
+            fileWriter.write(object.toJSONString());
+            fileWriter.flush();
+            fileWriter.close();
+        }
+        catch (IOException | ParseException e){
+
+        }
         return user;
+
     }
 
     private static File fileWithDirectoryAssurance(String directory, String filename) {

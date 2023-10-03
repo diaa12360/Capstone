@@ -1,4 +1,4 @@
-package com.atypon.node.exception;
+package com.atypon.client.exception;
 
 public class CollectionException extends NodeException {
     public CollectionException(String s) {

@@ -1,6 +1,6 @@
 package com.atypon.node.model;
 
-import com.atypon.node.service.IndexService;
+import com.atypon.node.service.IndexCash;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -8,7 +8,7 @@ import lombok.Data;
 @AllArgsConstructor
 public class Database {
     public String connectedDatabase;
-    public IndexService cash;
+    public IndexCash cash;
     public void setConnectedDatabase(String connectedDatabase) {
         cash.setDatabaseName(connectedDatabase);
         this.connectedDatabase = connectedDatabase;

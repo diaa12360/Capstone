@@ -19,11 +19,16 @@ public class UserControl {
         this.userService = userService;
     }
 
-
+    //TODO ADD ROLE
     @PostMapping("/create-account")
     public ResponseEntity<User> createAccount(@RequestBody User userRequest) {
         userRequest.setPassword(Encryption.encrypt(userRequest.getPassword()));
         User user = userService.createAccount(userRequest);
-        return new ResponseEntity<>(user, HttpStatus.OK);
+        return new ResponseEntity<>(user, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/get-node-url")
+    public ResponseEntity<String> getUser(@RequestParam String username){
+        return ResponseEntity.ok(userService.getNodeUrl(username));
     }
 }

@@ -3,38 +3,32 @@ package com.atypon.node.service;
 import com.atypon.node.exception.CollectionException;
 import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.exception.DocumentException;
+import com.atypon.node.model.Collection;
 import com.atypon.node.model.Document;
-import com.atypon.node.model.Node;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Component
 @Service
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
-public class IndexService {
+public class IndexCash {
     private String databaseName;
     private HashMap<String, HashMap<String, HashMap<String, ArrayList<String>>>> index;
 
-    public IndexService(String databaseName) {
+    public IndexCash(String databaseName) {
         this.databaseName = databaseName;
         index = new HashMap<>();
     }
@@ -60,7 +54,7 @@ public class IndexService {
         }
     }
 
-    public ArrayList<String> getData(String collection, String prop, String value) {
+    public List<String> getData(String collection, String prop, String value) {
         if (index == null)
             throw new DatabaseException("Please Connect to Database!!");
         else if (index.get(collection) == null)
@@ -70,7 +64,7 @@ public class IndexService {
         return index.get(collection).get(prop).get(value);
     }
 
-    private void addRecord(String dbName, String collectionName, String prop, String value, String documentPath) {
+    public void addRecord(String dbName, String collectionName, String prop, String value, String documentPath) {
         if (!dbName.equals(databaseName))
             throw new DatabaseException("This is not the Database You Connect!!");
         if (!new File(documentPath).exists())
@@ -83,18 +77,14 @@ public class IndexService {
         if (inner == null) {
             inner = new HashMap<>();
         }
-        HashMap<String, ArrayList<String>> thirdMap = inner.get(prop);
-        if (thirdMap == null) {
-            thirdMap = new HashMap<>();
-            inner.put(prop, thirdMap);
-        }
+        HashMap<String, ArrayList<String>> thirdMap = inner.computeIfAbsent(prop, k -> new HashMap<>()); // if the Inner Does NOT hashMap exist create new one.
         ArrayList<String> paths = thirdMap.get(value);
         if (paths == null)
             paths = new ArrayList<>();
         paths.add(documentPath);
     }
 
-    private void deleteRecord(String dbName, String collectionName, String prop, String value, String documentPath) {
+    public void deleteRecord(String dbName, String collectionName, String prop, String value, String documentPath) {
         if (!dbName.equals(databaseName))
             throw new DatabaseException("This is not the Database You Connect!!");
         if (!new File(documentPath).exists())
@@ -128,7 +118,6 @@ public class IndexService {
         } catch (ParseException | IOException e) {
             //TODO: Add Exception;
             System.out.println("Error here 174");
-            e.printStackTrace();
         }
     }
 
@@ -150,8 +139,31 @@ public class IndexService {
             }
         } catch (ParseException | IOException e) {
             System.out.println("Error here 227");
-            e.printStackTrace();
         }
     }
 
+    public void unIndexCollection(Collection collection) {
+        if(!index.containsKey(collection.getName()))
+            throw new CollectionException("Collection does not exists in this database");
+        index.remove(collection.getName(), index.get(collection.getName()));
+    }
+
+    public void unIndexDatabase(String dbName){
+        if(!databaseName.equals(dbName)){
+            throw new DatabaseException("Connect to the database  first!!");
+        }
+        index = null;
+    }
+
+    public void unIndexValue(String documentPath, String collectionName, String prop, String value) {
+        if(!index.containsKey(collectionName))
+            throw new CollectionException("Collection does not exists in this database");
+        Map<String, HashMap<String, ArrayList<String>>> collectionMap = index.get(collectionName);
+        Map<String, ArrayList<String>> values = collectionMap.get(prop);
+        if(!values.containsKey(value)){
+            throw new DocumentException("Value Dose Not exist!!");
+        }
+        ArrayList<String> paths = values.get(value);
+        paths.remove(documentPath);
+    }
 }

@@ -10,6 +10,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,10 @@ public class NodeService {
     private static Document nodeInfo = updatenNodeInfoFile();
     @Getter
     private static Document otherNodes = updateOtherNodesFile();
+    @Autowired
+    private IndexCash indexCash;
+
+
     public void createFile(Document document, String nodeName) {
         boolean amITheNode = nodeName.equals(nodeInfo.getData().get("name"));
         document.createFile(amITheNode);
@@ -60,9 +65,10 @@ public class NodeService {
 
     public void createDatabase(String name) {
         File file = new File("Database".concat(File.separator).concat(name));
-        if(file.exists())
+        if (file.exists())
             throw new DatabaseException("Database Is already Exists");
         file.mkdirs();
+        addDatabaseToJSONFile(name);
         file = new File(file.getPath().concat(File.separator).concat("metadata.json"));
         try {
             FileWriter writer = new FileWriter(file);
@@ -74,6 +80,27 @@ public class NodeService {
         }
     }
 
+    private void addDatabaseToJSONFile(String dbName) {
+        JSONParser parser = new JSONParser();
+        JSONObject object = new JSONObject();
+        try {
+            object = (JSONObject) parser.parse(new FileReader("Database/allDBs.json"));
+        } catch (IOException e) {
+            //TODO
+        } catch (ParseException e) {
+            //TODO
+        }
+        object.put(dbName, "Database/" + dbName);
+        try {
+            FileWriter writer = new FileWriter("Database/allDBs.json");
+            writer.write(object.toJSONString());
+            writer.flush();
+            writer.close();
+        } catch (IOException e) {
+            //TODO
+        }
+    }
+    //TODO unIndex
     public void deleteDatabase(String dbName) {
         File file = new File("Database/" + dbName);
         if (!file.delete()) {
@@ -86,6 +113,7 @@ public class NodeService {
         if (!file.exists()) {
             throw new DocumentException("Document Dose NOT Exists!!");
         }
+        // decrease affinity and send the new one to the other nodes
         if (file.canWrite()) {
             nodeInfo.editData("affinity", (Long) nodeInfo.getData().get("affinity") - 1);
             nodeInfo.read();
@@ -126,10 +154,10 @@ public class NodeService {
     public void deleteCollection(Collection collection) {
         String path = "Database/".concat(collection.getDatabaseName()).concat(File.separator).concat(collection.getName());
         File file = new File(path);
+        unIndexCollection(collection);
         if (!file.delete()) {
             throw new DatabaseException("Did not Deleted!!");
         }
-        unIndexCollection(collection);
     }
 
     private void unIndexCollection(Collection collection) {
@@ -143,12 +171,13 @@ public class NodeService {
             writer.write(metaData.toJSONString());
             writer.flush();
             writer.close();
+            indexCash.unIndexCollection(collection);
         } catch (ParseException | IOException e) {
-
+            //TODO
         }
     }
 
-    public ResponseEntity<?> modifyDocumentForOthers(Document documentAfter, Document documentBefore) {
+    public boolean modifyDocumentForOthers(Document documentAfter, Document documentBefore) {
         File file = new File(documentAfter.getPath());
         if (file.canWrite()) {
             Document temp = new Document(documentBefore.getPath());
@@ -156,16 +185,17 @@ public class NodeService {
             if (temp.getData().equals(documentBefore.getData())) {
                 temp.write(documentAfter.getData());
                 sendModification(documentAfter);
-                return new ResponseEntity<>(HttpStatus.ACCEPTED);
+                return true;
             } else {
-                return new ResponseEntity<>(HttpStatus.LOCKED);
+                return false;
             }
         }
-        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        return false;
     }
 
+    //TODO, Implement this
     private void sendModification(Document documentAfter) {
-        //TODO Continue working on
+
     }
 
     private void unIndexDocument(Document document) {
@@ -185,10 +215,11 @@ public class NodeService {
                 unIndex(document.getPath(), collectionPath, prop, value.toString());
             }
         } catch (ParseException | IOException e) {
-            //TODO, Add Exception;
+            //TODO
             System.out.println("Error here 174");
-            e.printStackTrace();
         }
+//        if (indexCash.getDatabaseName().equals(document.getDatabaseName()))
+//            indexCash.unIndexDocument(document);
     }
 
     private void unIndex(String documentPath, String collectionPath, String prop, String value) {
@@ -202,8 +233,15 @@ public class NodeService {
             fileWriter.write(index.toJSONString());
             fileWriter.flush();
             fileWriter.close();
+            if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(collectionPath.split("/")[1]))
+                indexCash.deleteRecord(
+                        documentPath.split("/")[1],
+                        collectionPath.split("/")[2],
+                        prop,
+                        value,
+                        documentPath
+                );
         } catch (ParseException | IOException e) {
-            e.printStackTrace();
         }
     }
 
@@ -220,9 +258,16 @@ public class NodeService {
             fileWriter.write(index.toJSONString());
             fileWriter.flush();
             fileWriter.close();
+            if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(collectionPath.split("/")[1]))
+                indexCash.addRecord(
+                        documentPath.split("/")[1],
+                        collectionPath.split("/")[2],
+                        prop,
+                        value,
+                        documentPath
+                );
         } catch (ParseException | IOException e) {
             System.out.println("Error here 206");
-            e.printStackTrace();
         }
     }
 
@@ -241,9 +286,9 @@ public class NodeService {
                 Object value = data.get(prop);
                 index(document.getPath(), collectionPath, prop, String.valueOf(value));
             }
+
         } catch (ParseException | IOException e) {
             System.out.println("Error here 227");
-            e.printStackTrace();
         }
     }
 
@@ -253,7 +298,7 @@ public class NodeService {
         Document otherNodes = new Document("nodeFiles/otherNodes.json");
         JSONObject thisNode = nodeInfo.read();
         JSONObject other = otherNodes.read();
-        if(thisNode == null || other == null)
+        if (thisNode == null || other == null)
             return nodeList;
         for (String key : (Set<String>) other.keySet()) {
             JSONObject nodeData = (JSONObject) other.get(key);
@@ -264,7 +309,6 @@ public class NodeService {
                     (Long) nodeData.get("affinity")
             ));
         }
-        //TODO, Get my Id from the bootstrabing node!!!
         nodeList.add(new Node(
                 -1,
                 (String) thisNode.get("name"),
@@ -280,7 +324,7 @@ public class NodeService {
         document.setPath("nodeFiles/nodeInfo.json");
         File file = new File("nodeFiles");
         file.mkdir();
-        if(document.read() == null)
+        if (document.read() == null)
             System.out.println("null");
         nodeInfo = document;
         return document;
@@ -291,7 +335,7 @@ public class NodeService {
         document.setPath("nodeFiles/otherNodes.json");
         File file = new File("nodeFiles");
         file.mkdir();
-        if(document.read() == null)
+        if (document.read() == null)
             System.out.println("null");
         otherNodes = document;
         return document;

@@ -11,17 +11,16 @@ services:
     networks:
       - culture_network
 
-  #  customer:
-  #    build: ./client
-  #    ports:
-  #      - "8080:8080"
-  #    depends_on:
-  #      - bootstrap
-  #    environment:
-  #      - BOOTSTRAP_HOST=bootstrap
-  #      - BOOTSTRAP_PORT=9090
-  #    networks:
-  #      - culture_network
+  customer:
+    build: ./client
+    ports:
+      - "8080:8080"
+    depends_on:
+      - bootstrap
+    environment:
+      BOOTSTRAP_URL: http://bootstrap:9090/
+    networks:
+      - culture_network
 
   bootstrap:
     build: ./bootstrap

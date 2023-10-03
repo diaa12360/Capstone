@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("user/auth")
+@RequestMapping("/auth")
 @RequiredArgsConstructor
 @ComponentScan
 public class AuthenticationControl {
@@ -27,13 +27,16 @@ public class AuthenticationControl {
 
     @PostMapping("/login")
     public ResponseEntity<String> authenticate(@RequestBody AuthRequest request) {
-        request.setPassword(Encryption.encrypt(request.getPassword()));
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
         final UserDetails userDetails = userDao.findUserByUsername(request.getUsername());
-        if (userDetails != null)
-            return new ResponseEntity<>(jwtUtils.generateToken(userDetails), HttpStatus.OK);
+        System.out.println(userDetails);
+        if (userDetails != null) {
+            String token = jwtUtils.generateToken(userDetails);
+            System.out.println(token);
+            return new ResponseEntity<>(token, HttpStatus.OK);
+        }
         return new ResponseEntity<>("Some error!!", HttpStatus.BAD_REQUEST);
     }
 
