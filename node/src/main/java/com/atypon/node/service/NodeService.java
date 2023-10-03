@@ -10,6 +10,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,9 @@ public class NodeService {
     private static Document nodeInfo = updatenNodeInfoFile();
     @Getter
     private static Document otherNodes = updateOtherNodesFile();
+    @Autowired
+    private IndexCash indexCash;
+
 
     public void createFile(Document document, String nodeName) {
         boolean amITheNode = nodeName.equals(nodeInfo.getData().get("name"));
@@ -84,7 +88,7 @@ public class NodeService {
         } catch (IOException e) {
             //TODO
         } catch (ParseException e) {
-            //TOD
+            //TODO
         }
         object.put(dbName, "Database/" + dbName);
         try {
@@ -92,11 +96,11 @@ public class NodeService {
             writer.write(object.toJSONString());
             writer.flush();
             writer.close();
-        } catch (IOException e){
+        } catch (IOException e) {
             //TODO
         }
     }
-
+    //TODO unIndex
     public void deleteDatabase(String dbName) {
         File file = new File("Database/" + dbName);
         if (!file.delete()) {
@@ -109,6 +113,7 @@ public class NodeService {
         if (!file.exists()) {
             throw new DocumentException("Document Dose NOT Exists!!");
         }
+        // decrease affinity and send the new one to the other nodes
         if (file.canWrite()) {
             nodeInfo.editData("affinity", (Long) nodeInfo.getData().get("affinity") - 1);
             nodeInfo.read();
@@ -149,10 +154,10 @@ public class NodeService {
     public void deleteCollection(Collection collection) {
         String path = "Database/".concat(collection.getDatabaseName()).concat(File.separator).concat(collection.getName());
         File file = new File(path);
+        unIndexCollection(collection);
         if (!file.delete()) {
             throw new DatabaseException("Did not Deleted!!");
         }
-        unIndexCollection(collection);
     }
 
     private void unIndexCollection(Collection collection) {
@@ -166,8 +171,9 @@ public class NodeService {
             writer.write(metaData.toJSONString());
             writer.flush();
             writer.close();
+            indexCash.unIndexCollection(collection);
         } catch (ParseException | IOException e) {
-
+            //TODO
         }
     }
 
@@ -209,9 +215,11 @@ public class NodeService {
                 unIndex(document.getPath(), collectionPath, prop, value.toString());
             }
         } catch (ParseException | IOException e) {
-            //TODO, Add Exception;
+            //TODO
             System.out.println("Error here 174");
         }
+//        if (indexCash.getDatabaseName().equals(document.getDatabaseName()))
+//            indexCash.unIndexDocument(document);
     }
 
     private void unIndex(String documentPath, String collectionPath, String prop, String value) {
@@ -225,6 +233,14 @@ public class NodeService {
             fileWriter.write(index.toJSONString());
             fileWriter.flush();
             fileWriter.close();
+            if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(collectionPath.split("/")[1]))
+                indexCash.deleteRecord(
+                        documentPath.split("/")[1],
+                        collectionPath.split("/")[2],
+                        prop,
+                        value,
+                        documentPath
+                );
         } catch (ParseException | IOException e) {
         }
     }
@@ -242,6 +258,14 @@ public class NodeService {
             fileWriter.write(index.toJSONString());
             fileWriter.flush();
             fileWriter.close();
+            if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(collectionPath.split("/")[1]))
+                indexCash.addRecord(
+                        documentPath.split("/")[1],
+                        collectionPath.split("/")[2],
+                        prop,
+                        value,
+                        documentPath
+                );
         } catch (ParseException | IOException e) {
             System.out.println("Error here 206");
         }
@@ -262,6 +286,7 @@ public class NodeService {
                 Object value = data.get(prop);
                 index(document.getPath(), collectionPath, prop, String.valueOf(value));
             }
+
         } catch (ParseException | IOException e) {
             System.out.println("Error here 227");
         }
@@ -284,7 +309,6 @@ public class NodeService {
                     (Long) nodeData.get("affinity")
             ));
         }
-        //TODO, Get my Id from the bootstrabing node!!!
         nodeList.add(new Node(
                 -1,
                 (String) thisNode.get("name"),

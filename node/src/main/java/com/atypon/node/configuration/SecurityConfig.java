@@ -27,6 +27,7 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDao userDao;
 
+    //TODO, Create Tokens between the node.
     @Bean
     public SecurityFilterChain defulteSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
@@ -48,7 +49,6 @@ public class SecurityConfig {
     }
 
     // TODO, Create Role Admin.
-    // TODO, Make Password Encoder
     @Bean
     public PasswordEncoder passwordEncoder() {
         return NoOpPasswordEncoder.getInstance();

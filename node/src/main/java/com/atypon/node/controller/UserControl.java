@@ -1,5 +1,6 @@
 package com.atypon.node.controller;
 
+import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.model.Collection;
 import com.atypon.node.model.Document;
 import com.atypon.node.model.User;
@@ -8,11 +9,13 @@ import lombok.AllArgsConstructor;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -52,6 +55,7 @@ public class UserControl {
     public ResponseEntity<?> createDatabase(@RequestParam String dbName) {
         userService.createDatabase(dbName);
         return new ResponseEntity<>(HttpStatus.CREATED);
+
     }
 
     @DeleteMapping("/delete-document")
@@ -85,8 +89,12 @@ public class UserControl {
     public ResponseEntity<List<Document>> findAll(@RequestParam String collection,
                                                   @RequestParam String property,
                                                   @RequestParam String value) {
-        List<Document> documents = userService.findAll(collection, property, value);
-        return new ResponseEntity<>(documents, HttpStatus.OK);
+        try {
+            List<Document> documents = userService.findAll(collection, property, value);
+            return new ResponseEntity<>(documents, HttpStatus.OK);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().header("error", e.getMessage()).build();
+        }
     }
 
     @GetMapping("/connect-to-database")

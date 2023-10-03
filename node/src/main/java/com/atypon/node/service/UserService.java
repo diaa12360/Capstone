@@ -62,7 +62,7 @@ public class UserService {
         Document document = new Document();
         List<String> paths = indexCash.getData(collectionName, property, value);
         if (paths.isEmpty())
-            return null;
+            throw new DocumentException("User Not Found");
         document.setPath(paths.get(0));
         document.read();
         return document;
@@ -99,8 +99,7 @@ public class UserService {
                 );
         }
         minAffinity.setAffinity(minAffinity.getAffinity() + 1);
-        nodeService.createFile(document, minAffinity.getName());
-        indexCash.indexDocument(document);
+//        indexCash.indexDocument(document);
         return document;
     }
 
@@ -162,9 +161,8 @@ public class UserService {
                 );
         }
         nodeService.deleteDocument(document);
-        indexCash.unIndexDocument(document);
     }
-
+    //TODO, Reindexing
     public void deleteCollection(Collection collection) {
         if (!new File(collection.getPath()).exists())
             throw new CollectionException("Collection Dose NOT Exists");

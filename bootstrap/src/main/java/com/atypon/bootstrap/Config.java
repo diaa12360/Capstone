@@ -68,6 +68,7 @@ public class Config {
         restTemplate.postForEntity(node3URL + "manage/init", new HttpEntity<>(jsonForNode3().toString()), String.class);
     }
 
+    //TODO Create Service to this.
     @Bean
     public List<Node> nodes() {
         List<Node> nodes = new ArrayList<>();

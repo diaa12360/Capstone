@@ -3,6 +3,7 @@ package com.atypon.node.service;
 import com.atypon.node.exception.CollectionException;
 import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.exception.DocumentException;
+import com.atypon.node.model.Collection;
 import com.atypon.node.model.Document;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -16,10 +17,7 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Component
 @Service
@@ -66,7 +64,7 @@ public class IndexCash {
         return index.get(collection).get(prop).get(value);
     }
 
-    private void addRecord(String dbName, String collectionName, String prop, String value, String documentPath) {
+    public void addRecord(String dbName, String collectionName, String prop, String value, String documentPath) {
         if (!dbName.equals(databaseName))
             throw new DatabaseException("This is not the Database You Connect!!");
         if (!new File(documentPath).exists())
@@ -86,7 +84,7 @@ public class IndexCash {
         paths.add(documentPath);
     }
 
-    private void deleteRecord(String dbName, String collectionName, String prop, String value, String documentPath) {
+    public void deleteRecord(String dbName, String collectionName, String prop, String value, String documentPath) {
         if (!dbName.equals(databaseName))
             throw new DatabaseException("This is not the Database You Connect!!");
         if (!new File(documentPath).exists())
@@ -144,4 +142,28 @@ public class IndexCash {
         }
     }
 
+    public void unIndexCollection(Collection collection) {
+        if(!index.containsKey(collection.getName()))
+            throw new CollectionException("Collection does not exists in this database");
+        index.remove(collection.getName(), index.get(collection.getName()));
+    }
+
+    public void unIndexDatabase(String dbName){
+        if(!databaseName.equals(dbName)){
+            throw new DatabaseException("Connect to the database  first!!");
+        }
+        index = null;
+    }
+
+    public void unIndexValue(String documentPath, String collectionName, String prop, String value) {
+        if(!index.containsKey(collectionName))
+            throw new CollectionException("Collection does not exists in this database");
+        Map<String, HashMap<String, ArrayList<String>>> collectionMap = index.get(collectionName);
+        Map<String, ArrayList<String>> values = collectionMap.get(prop);
+        if(!values.containsKey(value)){
+            throw new DocumentException("Value Dose Not exist!!");
+        }
+        ArrayList<String> paths = values.get(value);
+        paths.remove(documentPath);
+    }
 }
