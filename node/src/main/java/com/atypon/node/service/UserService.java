@@ -5,6 +5,7 @@ import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.exception.DocumentException;
 import com.atypon.node.model.Collection;
 import com.atypon.node.model.Document;
+import com.atypon.node.model.MetadataFile;
 import com.atypon.node.model.Node;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -59,30 +60,36 @@ public class UserService {
     }
 
     public Document find(String collectionName, String property, String value) {
-        Document document = new Document();
-        List<String> paths = indexCash.getData(collectionName, property, value);
+        List<String> paths = indexCash.getPaths(collectionName, property, value);
         if (paths.isEmpty())
             throw new DocumentException("User Not Found");
-        document.setPath(paths.get(0));
-        document.read();
-        return document;
+        return Document.createUsingPath(paths.get(0));
     }
 
     public List<Document> findAll(String collectionName, String property, String value) {
-        List<String> paths = indexCash.getData(collectionName, property, value);
+        List<String> paths = indexCash.getPaths(collectionName, property, value);
         ArrayList<Document> documents = new ArrayList<>();
         for (String path : paths) {
-            Document document = new Document();
-            document.setPath(path);
-            document.read();
-            documents.add(document);
+            documents.add(Document.createUsingPath(path));
         }
         return documents;
     }
 
     public Document createDocument(Document document) {
-        if (!document.getPath().contains(indexCash.getDatabaseName()))
+        if (document.getDatabaseName() == null && indexCash.getDatabaseName() != null) {
+            document.setDatabaseName(indexCash.getDatabaseName());
+        }
+        if (indexCash.getDatabaseName() == null || !document.getDatabaseName().equals(indexCash.getDatabaseName()))
             throw new DatabaseException("Please Connect to " + document.getDatabaseName() + " First!");
+        //TODO,,,Collection Check
+        String collectionPath = "Database" + document.getDatabaseName() + document.getCollectionName();
+        MetadataFile metadata = new MetadataFile(collectionPath + "/metadata.json");
+        JSONObject props = (JSONObject) metadata.readData().get("prop");
+        for (String prop : (Set<String>) document.getData().keySet()) {
+            if (props.containsKey(prop)) continue;
+            throw new DocumentException("Please Enter The correct Data and properties!! like this ");
+        }
+
         Node minAffinity = NodeService.getNodes().get(0);
         for (Node n : NodeService.getNodes()) {
             if (n.getAffinity() < minAffinity.getAffinity()) {
@@ -99,7 +106,6 @@ public class UserService {
                 );
         }
         minAffinity.setAffinity(minAffinity.getAffinity() + 1);
-//        indexCash.indexDocument(document);
         return document;
     }
 
@@ -162,6 +168,7 @@ public class UserService {
         }
         nodeService.deleteDocument(document);
     }
+
     //TODO, Reindexing
     public void deleteCollection(Collection collection) {
         if (!new File(collection.getPath()).exists())
@@ -221,18 +228,22 @@ public class UserService {
             throw new DatabaseException("Please Connect to Database!!");
         if (!documentBefore.getDatabaseName().equals(indexCash.getDatabaseName()))
             throw new DatabaseException("Document Dose NOT Exists in \"" + indexCash.getDatabaseName() + "\" Database!!");
-        if (nodeService.modifyDocumentForOthers(documentAfter, documentBefore)) {
-            return documentAfter;
+        File file = new File(documentBefore.getPath());
+        if (file.canWrite()) {
+            return nodeService.modifyDocumentForOthers(documentBefore, documentAfter);
         } else {
-            RestTemplate restTemplate = new RestTemplate();
             HashMap<String, Document> mp = new HashMap<>();
             mp.put("documentAfter", documentAfter);
             mp.put("documentBefore", documentBefore);
             for (Node n : NodeService.getNodes()) {
-                if (n.getId() != -1 &&
-                        (restTemplate.postForEntity(n.getAddress() + "node/modify-document",
-                                mp, HashMap.class).getStatusCode().equals(HttpStatus.ACCEPTED))) {
-                    return documentAfter;
+                if (n.getId() != -1) {
+                    Document document = restTemplate.postForEntity(
+                            n.getAddress() + "node/modify-document",
+                            mp,
+                            Document.class
+                    ).getBody();
+                    if (document != null)
+                        return documentAfter;
                 }
             }
             return documentBefore;
@@ -264,4 +275,7 @@ public class UserService {
         return new ArrayList<String>(object.keySet());
     }
 
+    public Document modifyDocument(Document after) {
+        return modifyDocument(new Document(after), after);
+    }
 }

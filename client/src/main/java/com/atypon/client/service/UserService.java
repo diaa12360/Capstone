@@ -1,6 +1,5 @@
 package com.atypon.client.service;
 
-import com.atypon.client.exception.DatabaseException;
 import com.atypon.client.model.AuthRequest;
 import com.atypon.client.model.Collection;
 import com.atypon.client.model.Document;
@@ -9,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 

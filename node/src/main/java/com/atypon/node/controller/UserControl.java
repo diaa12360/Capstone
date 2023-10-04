@@ -1,21 +1,13 @@
 package com.atypon.node.controller;
 
-import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.model.Collection;
 import com.atypon.node.model.Document;
-import com.atypon.node.model.User;
 import com.atypon.node.service.UserService;
 import lombok.AllArgsConstructor;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.*;
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -24,19 +16,6 @@ import java.util.List;
 public class UserControl {
 
     private final UserService userService;
-
-    @GetMapping("/login")
-    public ResponseEntity<User> login(@RequestBody User user) throws IOException, ParseException {
-        JSONParser parser = new JSONParser();
-        JSONObject jsonObject = (JSONObject) parser.parse(new FileReader("nodeInfo.json"));
-        JSONObject v1 = ((JSONObject) jsonObject.get("users"));
-        JSONObject v2 = (JSONObject) (v1.get((user.getUsername())));
-        String password = v2.get("password").toString();
-        if (password.equals(user.getPassword())) {
-            return new ResponseEntity<>(user, HttpStatus.OK);
-        }
-        return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-    }
 
     @PostMapping("/create-document")
     public ResponseEntity<Document> createFile(@RequestBody Document document) {
@@ -113,5 +92,10 @@ public class UserControl {
     public ResponseEntity<List<String>> getCollections() {
         List<String> databases = userService.getCollections();
         return new ResponseEntity<>(databases, HttpStatus.OK);
+    }
+
+    @PutMapping("/modify-document")
+    public ResponseEntity<Document> modifyDocument(@RequestBody Document after){
+        return ResponseEntity.ok(userService.modifyDocument(after));
     }
 }

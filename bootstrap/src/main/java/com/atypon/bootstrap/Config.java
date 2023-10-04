@@ -64,8 +64,8 @@ public class Config {
     public void init() {
         RestTemplate restTemplate = new RestTemplate();
         restTemplate.postForEntity(node1URL + "manage/init", new HttpEntity<>(jsonForNode1().toString()), String.class);
-        restTemplate.postForEntity(node2URL + "manage/init", new HttpEntity<>(jsonForNode2().toString()), String.class);
-        restTemplate.postForEntity(node3URL + "manage/init", new HttpEntity<>(jsonForNode3().toString()), String.class);
+//        restTemplate.postForEntity(node2URL + "manage/init", new HttpEntity<>(jsonForNode2().toString()), String.class);
+//        restTemplate.postForEntity(node3URL + "manage/init", new HttpEntity<>(jsonForNode3().toString()), String.class);
     }
 
     //TODO Create Service to this.
@@ -82,18 +82,18 @@ public class Config {
         JSONObject request = new JSONObject();
         JSONObject temp = new JSONObject();
         JSONObject temp2 = new JSONObject();
-        temp2.put("address", node2URL);
-        temp2.put("name", "node2");
-        temp2.put("affinity", 0L);
-        temp.put("2", temp2);
-
-        temp2 = new JSONObject();
-        temp2.put("address", node3URL);
-        temp2.put("name", "node3");
-        temp2.put("affinity", 0L);
-
-        temp.put("3", temp2);
-
+//        temp2.put("address", node2URL);
+//        temp2.put("name", "node2");
+//        temp2.put("affinity", 0L);
+//        temp.put("2", temp2);
+//
+//        temp2 = new JSONObject();
+//        temp2.put("address", node3URL);
+//        temp2.put("name", "node3");
+//        temp2.put("affinity", 0L);
+//
+//        temp.put("3", temp2);
+//
         request.put("otherNodes", temp);
 
         List<User> users = userRepo.findAllByNodeAddress(node1URL).orElseThrow();

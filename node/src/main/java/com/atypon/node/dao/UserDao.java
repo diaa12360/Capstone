@@ -1,6 +1,6 @@
 package com.atypon.node.dao;
 
-import com.atypon.node.model.Document;
+import com.atypon.node.model.MetadataFile;
 import org.json.simple.JSONObject;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
@@ -13,8 +13,8 @@ import java.util.Collections;
 public class UserDao {
 
     public UserDetails findUserByUsername(String username) {
-        Document usersFile = new Document("nodeFiles/users.json");
-        usersFile.read();
+        MetadataFile usersFile = new MetadataFile("nodeFiles/users.json");
+        usersFile.readData();
         JSONObject users = (JSONObject) usersFile.getData().get(username);
         System.out.println(users);
         User user1 = null;

@@ -54,7 +54,7 @@ public class IndexCash {
         }
     }
 
-    public List<String> getData(String collection, String prop, String value) {
+    public List<String> getPaths(String collection, String prop, String value) {
         if (index == null)
             throw new DatabaseException("Please Connect to Database!!");
         else if (index.get(collection) == null)

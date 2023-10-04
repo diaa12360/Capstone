@@ -5,7 +5,6 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestBody;
 
 import java.io.File;
 import java.io.FileReader;
@@ -14,26 +13,27 @@ import java.io.IOException;
 
 @Service
 public class BootstrappingService {
-    public void getInfo(@RequestBody String s) throws ParseException {
+    public void getInfo(String s) throws ParseException {
         if(!NodeService.getNodes().isEmpty()) {
             return;
         }
         JSONParser parser = new JSONParser();
         JSONObject object = (JSONObject) parser.parse(s);
         FileWriter fileWriter = null;
-        System.out.println(s);
+        System.out.println("boot::" + s);
         try {
             fileWriter = new FileWriter("nodeFiles/nodeInfo.json");
             JSONObject temp = (JSONObject)object.get("nodeInfo");
             fileWriter.write(temp.toJSONString());
             fileWriter.flush();
             fileWriter.close();
-            
+
             fileWriter = new FileWriter("nodeFiles/otherNodes.json");
             temp = (JSONObject) object.get("otherNodes");
             fileWriter.write(temp.toJSONString());
             fileWriter.flush();
             fileWriter.close();
+
 
             fileWriter = new FileWriter("nodeFiles/users.json");
             temp = (JSONObject) object.get("users");
@@ -41,11 +41,12 @@ public class BootstrappingService {
             fileWriter.flush();
             fileWriter.close();
 
-            NodeService.updatenNodeInfoFile();
+            System.out.println("updated");
+            NodeService.updateNodeInfoFile();
             NodeService.updateOtherNodesFile();
             NodeService.updateAllNodes();
         } catch (IOException e) {
-            //TODO, log or handle the exception
+            e.printStackTrace();
         } finally {
             if (fileWriter != null) {
                 try {
