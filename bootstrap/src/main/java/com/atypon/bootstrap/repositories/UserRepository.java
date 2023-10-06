@@ -10,6 +10,6 @@ import java.util.Optional;
 
 @Repository
 @RepositoryDefinition(domainClass = User.class, idClass = String.class)
-public interface UserRepo extends JpaRepository<User, String> {
+public interface UserRepository extends JpaRepository<User, String> {
     Optional<List<User>> findAllByNodeAddress(String nodeAddress);
 }

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -19,7 +20,6 @@ public class UserService {
     private String nodeUrl;
     private final RestTemplate restTemplate;
     private final HttpHeaders headers;
-    private String dbName;
 
     @Autowired
     public UserService(RestTemplate restTemplate, @Value("${bootstrap.url}") String bootstrapUrl, HttpHeaders headers) {
@@ -65,7 +65,6 @@ public class UserService {
 
     public String connectToDatabase(String dbName) {
         HttpEntity<String> entityReq = new HttpEntity<>(dbName, headers);
-        this.dbName = dbName;
         return restTemplate.exchange(
                 nodeUrl.concat("/user/connect-to-database?dbName=").concat(dbName),
                 HttpMethod.GET, entityReq, String.class).getBody();
@@ -118,11 +117,16 @@ public class UserService {
     }
 
     //TODO, Implement this
-    public Document modifyRecord() {
-        return new Document();
+    public Document modifyRecord(Document document) {
+        return restTemplate.exchange(
+                nodeUrl.concat("/user/modify-document"),
+                HttpMethod.PUT,
+                new HttpEntity<>(document, headers),
+                Document.class
+        ).getBody();
     }
 
-    public String getDataOne(String collectionName, String prop, Object value) {
+    public Document getDataOne(String collectionName, String prop, Object value) {
         return Objects.requireNonNull(
                 restTemplate.exchange(
                         nodeUrl
@@ -132,7 +136,52 @@ public class UserService {
                         new HttpEntity<>(headers),
                         Document.class
                 ).getBody()
-        ).getData().toJSONString();
+        );
     }
 
+    public List<Document> getAll(String collectionName, String prop, String value) {
+        return Objects.requireNonNull(
+                restTemplate.exchange(
+                        nodeUrl
+                                .concat("/user/find-all?collection=").concat(collectionName).concat("&")
+                                .concat("property=").concat(prop).concat("&").concat("value=").concat(String.valueOf(value)),
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        List.class
+                ).getBody()
+        );
+    }
+
+    public List<String> getDatabases() {
+        return Objects.requireNonNull(
+                restTemplate.exchange(
+                        nodeUrl.concat("/user/get-databases"),
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        List.class
+                ).getBody()
+        );
+    }
+
+    public List<String> getCollections() {
+        return Objects.requireNonNull(
+                restTemplate.exchange(
+                        nodeUrl.concat("/user/get-collections"),
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        List.class
+                ).getBody()
+        );
+    }
+
+    public String getProps(String collectionName) {
+        return Objects.requireNonNull(
+                restTemplate.exchange(
+                        nodeUrl.concat("/user/get-props?collectionName=").concat(collectionName),
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        String.class
+                ).getBody()
+        );
+    }
 }

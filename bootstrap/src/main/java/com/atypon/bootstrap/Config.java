@@ -2,7 +2,7 @@ package com.atypon.bootstrap;
 
 import com.atypon.bootstrap.model.Node;
 import com.atypon.bootstrap.model.User;
-import com.atypon.bootstrap.repositories.UserRepo;
+import com.atypon.bootstrap.repositories.UserRepository;
 import jakarta.annotation.PostConstruct;
 import org.json.simple.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,16 +22,16 @@ import java.util.List;
 @ComponentScan
 public class Config {
     @Value("${node.url.first}")
-    String node1URL;
+    private String node1URL;
     @Value("${node.url.second}")
-    String node2URL;
+    private String node2URL;
     @Value("${node.url.third}")
-    String node3URL;
-    UserRepo userRepo;
+    private String node3URL;
+    private final UserRepository userRepository;
 
     @Autowired
-    public Config(UserRepo userRepo) {
-        this.userRepo = userRepo;
+    public Config(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     @Bean
@@ -42,33 +42,33 @@ public class Config {
     @Bean
     public Node node1() {
         Node node = new Node(node1URL, "node1");
-        node.setUsersList(userRepo.findAllByNodeAddress(node1URL).orElseThrow());
+        node.setUsersList(userRepository.findAllByNodeAddress(node1URL).orElseThrow());
         return node;
     }
 
-    @Bean
     public Node node2() {
         Node node = new Node(node2URL, "node2");
-        node.setUsersList(userRepo.findAllByNodeAddress(node2URL).orElseThrow());
+        node.setUsersList(userRepository.findAllByNodeAddress(node2URL).orElseThrow());
         return node;
     }
 
-    @Bean
     public Node node3() {
         Node node = new Node(node3URL, "node3");
-        node.setUsersList(userRepo.findAllByNodeAddress(node3URL).orElseThrow());
+        node.setUsersList(userRepository.findAllByNodeAddress(node3URL).orElseThrow());
         return node;
     }
 
     @PostConstruct
     public void init() {
+//        User admin = new User("admin", "admin password");
+//        User normalUser = new User("user", "user password");
+//        userRepository.save(admin, normalUser);
         RestTemplate restTemplate = new RestTemplate();
         restTemplate.postForEntity(node1URL + "manage/init", new HttpEntity<>(jsonForNode1().toString()), String.class);
 //        restTemplate.postForEntity(node2URL + "manage/init", new HttpEntity<>(jsonForNode2().toString()), String.class);
 //        restTemplate.postForEntity(node3URL + "manage/init", new HttpEntity<>(jsonForNode3().toString()), String.class);
     }
 
-    //TODO Create Service to this.
     @Bean
     public List<Node> nodes() {
         List<Node> nodes = new ArrayList<>();
@@ -96,7 +96,7 @@ public class Config {
 //
         request.put("otherNodes", temp);
 
-        List<User> users = userRepo.findAllByNodeAddress(node1URL).orElseThrow();
+        List<User> users = userRepository.findAllByNodeAddress(node1URL).orElseThrow();
         temp = new JSONObject();
         for (User user : users) {
             temp2 = new JSONObject();
@@ -133,7 +133,7 @@ public class Config {
 
         request.put("otherNodes", temp);
 
-        List<User> users = userRepo.findAllByNodeAddress(node2URL).orElseThrow();
+        List<User> users = userRepository.findAllByNodeAddress(node2URL).orElseThrow();
         temp = new JSONObject();
         for (User user : users) {
             temp2 = new JSONObject();
@@ -171,7 +171,7 @@ public class Config {
         temp.put("2", temp2);
         request.put("otherNodes", temp);
 
-        List<User> users = userRepo.findAllByNodeAddress(node3URL).orElseThrow();
+        List<User> users = userRepository.findAllByNodeAddress(node3URL).orElseThrow();
         temp = new JSONObject();
         for (User user : users) {
             temp2 = new JSONObject();

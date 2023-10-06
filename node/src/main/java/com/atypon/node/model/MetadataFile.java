@@ -20,11 +20,10 @@ public class MetadataFile {
     }
 
     public JSONObject readData() {
-        try {
+        try (FileReader reader = new FileReader(path)) {
             JSONParser parser = new JSONParser();
-            data = (JSONObject) parser.parse(new FileReader(path));
+            data = (JSONObject) parser.parse(reader);
         } catch (IOException e) {
-//            throw new DocumentException("File Dose NOT Exist!!");
             return null;
         } catch (ParseException ignored) {
             //Ignored!

@@ -98,4 +98,9 @@ public class UserControl {
     public ResponseEntity<Document> modifyDocument(@RequestBody Document after){
         return ResponseEntity.ok(userService.modifyDocument(after));
     }
+
+    @GetMapping("/get-props")
+    public ResponseEntity<String> getProps(String collectionName){
+        return ResponseEntity.ok(userService.getProps(collectionName));
+    }
 }

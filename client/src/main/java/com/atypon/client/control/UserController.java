@@ -6,12 +6,13 @@ import com.atypon.client.model.Collection;
 import com.atypon.client.model.Document;
 import com.atypon.client.service.UserService;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @Component
@@ -46,9 +47,8 @@ public class UserController {
     }
 
     @PutMapping("/modify-record")
-    public ResponseEntity<?> modifyDocument() {
-        //TODO
-        return new ResponseEntity<>(HttpStatus.OK);
+    public ResponseEntity<?> modifyDocument(@RequestBody Document document) {
+        return ResponseEntity.ok(service.modifyRecord(document));
     }
 
     @PostMapping("/create-database")
@@ -73,6 +73,12 @@ public class UserController {
         return new ResponseEntity<>(newCollection, HttpStatus.OK);
     }
 
+    @DeleteMapping("/delete-collection")
+    public ResponseEntity<?> deleteCollection(@RequestBody Collection collection){
+        service.deleteCollection(collection);
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+
     @GetMapping("/connect-to-database")
     public ResponseEntity<String> connectToDatabase(@RequestParam String dbName) {
         return new ResponseEntity<>(service.connectToDatabase(dbName), HttpStatus.OK);
@@ -82,7 +88,30 @@ public class UserController {
     public ResponseEntity<?> find(@RequestParam String collectionName,
                                   @RequestParam String prop,
                                   @RequestParam String value) {
-        String data = service.getDataOne(collectionName, prop, value);
+        Document data = service.getDataOne(collectionName, prop, value);
         return ResponseEntity.ok(data);
+    }
+
+    @GetMapping("/find-all")
+    public ResponseEntity<?> findAll(@RequestParam String collectionName,
+                                  @RequestParam String prop,
+                                  @RequestParam String value) {
+        List<Document> data = service.getAll(collectionName, prop, value);
+        return ResponseEntity.ok(data);
+    }
+
+    @GetMapping("/get-databases")
+    public ResponseEntity<List<String>> getDatabases(){
+        return ResponseEntity.ok(service.getDatabases());
+    }
+
+    @GetMapping("/get-collections")
+    public ResponseEntity<List<String>> getCollections() {
+        return ResponseEntity.ok(service.getCollections());
+    }
+
+    @GetMapping("/get-collection-props")
+    public ResponseEntity<String> getProps(String collectionName){
+        return ResponseEntity.ok(service.getProps(collectionName));
     }
 }

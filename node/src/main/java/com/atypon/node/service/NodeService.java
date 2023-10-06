@@ -68,6 +68,7 @@ public class NodeService {
 
     public void createCollection(Collection collectionData) {
         collectionData.createCollection();
+        indexCash.fillCollection(collectionData.getPath(), collectionData.getName());
     }
 
     public void createDatabase(String name) {
@@ -104,13 +105,8 @@ public class NodeService {
         }
     }
 
-    //TODO unIndex
     public void deleteDatabase(String dbName) {
-        try {
-            Files.delete(Path.of("Database/" + dbName));
-        } catch (IOException e) {
-            throw new DatabaseException("Did not Deleted");
-        }
+        deleteDirectory(new File("Database/" + dbName));
     }
 
     public void deleteDocument(Document document) {
@@ -163,26 +159,42 @@ public class NodeService {
         File file = new File(path);
         unIndexCollection(collection);
         if (file.setWritable(true)) {
-            try {
-                Files.delete(Path.of(file.getPath()));
-            } catch (IOException e) {
-                throw new DatabaseException("Collection Did not Deleted!!");
+            deleteDirectory(file);
+        }
+    }
+
+    private static boolean deleteDirectory(File directory) {
+        if (directory.isDirectory()) {
+            File[] files = directory.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isDirectory()) {
+                        deleteDirectory(file);
+                    } else {
+                        file.delete();
+                    }
+                }
             }
         }
+        return directory.delete();
     }
 
     private void unIndexCollection(Collection collection) {
         JSONParser parser = new JSONParser();
         String dbPath = collection.getPath().substring(0, collection.getPath().lastIndexOf('/'));
         String metadataPath = dbPath.concat(File.separator).concat("/metadata.json");
-        try (FileWriter writer = new FileWriter(metadataPath);
-             FileReader reader = new FileReader(metadataPath);) {
-            JSONObject metaData = (JSONObject) parser.parse(reader);
+        JSONObject metaData = new JSONObject();
+        try (FileReader reader = new FileReader(metadataPath);) {
+            metaData = (JSONObject) parser.parse(reader);
+        } catch (ParseException | IOException e) {
+            //TODO
+        }
+        try (FileWriter writer = new FileWriter(metadataPath);) {
             metaData.remove(collection.getName());
             writer.write(metaData.toJSONString());
             writer.flush();
             indexCash.unIndexCollection(collection);
-        } catch (ParseException | IOException e) {
+        } catch (IOException e) {
             //TODO
         }
     }
@@ -203,7 +215,6 @@ public class NodeService {
         return null;
     }
 
-    //TODO, Implement this
     private void sendModification(Document before, Document after) {
         HashMap<String, Document> mp = new HashMap<>();
         mp.put("after", after);
@@ -221,8 +232,8 @@ public class NodeService {
     }
 
     public Document modify(Document before, Document after) {
-        before.write(after.getData());
         reIndexDocument(before, after);
+        before.write(after.getData());
         after.read();
         return after;
     }
@@ -236,7 +247,7 @@ public class NodeService {
             Object value2 = dataAfter.get(prop);
             if (value1.equals(value2)) continue;
             unIndex(before, prop, value1.toString());
-            index(after, prop, value1.toString());
+            index(after, prop, value2.toString());
         }
 
     }
@@ -257,51 +268,75 @@ public class NodeService {
                 document.getPath().substring(0, document.getPath().lastIndexOf("/"))
                         .concat(File.separator).concat("index").concat(File.separator)
                         .concat(prop).concat(".json"));
-        try (FileWriter writer = new FileWriter(file);
-             FileReader reader = new FileReader(file)) {
-            JSONObject index = (JSONObject) parser.parse(reader);
-            index.remove(value, document.getPath());
+        JSONObject index = new JSONObject();
+        try (FileReader reader = new FileReader(file)) {
+            index = ((JSONObject) parser.parse(reader));
+        } catch (ParseException | IOException ignored) {
+            ignored.printStackTrace();
+            System.out.println("268");
+        }
+        try (FileWriter writer = new FileWriter(file);) {
+            String path = document.getPath();
+            ArrayList<String> paths = (ArrayList<String>) index.get(value);
+            if (paths == null) {
+                return;
+            }
+            if (paths.isEmpty()) {
+                return;
+            }
+            paths.remove(path);
+            if (paths.isEmpty())
+                index.remove(value);
+            else {
+                index.put(value, paths);
+            }
             writer.write(index.toJSONString());
             writer.flush();
-            if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(document.getPath()))
-                indexCash.deleteRecord(
-                        document.getDatabaseName(),
-                        document.getCollectionName(),
-                        prop,
-                        value,
-                        document.getPath()
-                );
-        } catch (ParseException | IOException ignored) {
-            //Ignored
+        } catch (IOException ignored) {
+            ignored.printStackTrace();
         }
+        if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(document.getDatabaseName()))
+            indexCash.deleteRecord(
+                    document.getDatabaseName(),
+                    document.getCollectionName(),
+                    prop,
+                    value,
+                    document.getPath()
+            );
     }
 
 
     public void index(Document document, String prop, String value) {
         JSONParser parser = new JSONParser();
         File file = new File(
-                document.getPath().substring(0, document.getPath().lastIndexOf("/"))
+                "Database/".concat(document.getDatabaseName())
+                        .concat(File.separator).concat(document.getCollectionName())
                         .concat(File.separator).concat("index").concat(File.separator)
                         .concat(prop).concat(".json"));
-        try (FileWriter writer = new FileWriter(file);
-             FileReader reader = new FileReader(file);)  {
-            JSONObject index = (JSONObject) parser.parse(reader);
+        JSONObject index = new JSONObject();
+        try (FileReader reader = new FileReader(file);) {
+            index = (JSONObject) parser.parse(reader);
             JSONArray arr = (JSONArray) index.getOrDefault(value, new JSONArray());
             arr.add(document.getPath());
             index.put(value, arr);
+        } catch (ParseException | IOException e) {
+            e.printStackTrace();
+        }
+        try (FileWriter writer = new FileWriter(file);) {
             writer.write(index.toJSONString());
             writer.flush();
-            if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(document.getDatabaseName()))
-                indexCash.addRecord(
-                        document.getDatabaseName(),
-                        document.getCollectionName(),
-                        prop,
-                        value,
-                        document.getPath()
-                );
-        } catch (ParseException | IOException e) {
-            System.out.println("Error here 206");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+        if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(document.getDatabaseName()))
+            indexCash.addRecord(
+                    document.getDatabaseName(),
+                    document.getCollectionName(),
+                    prop,
+                    value,
+                    document.getPath()
+            );
+
     }
 
     public void indexDocument(Document document) {
@@ -361,5 +396,4 @@ public class NodeService {
         otherNodes = document;
         return document;
     }
-    //TODO, Create Index Database
 }
