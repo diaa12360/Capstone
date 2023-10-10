@@ -28,7 +28,8 @@ public class UserService {
     }
 
 
-    public User createAccount(@RequestBody User userRequest) {
+    public User createAccount(User userRequest) {
+        System.out.println(userRequest);
         if (userRepository.findById(userRequest.getUsername()).orElse(null) != null)
             throw new UserException("User is already Exist!");
         Node minNode = nodes.get(0);

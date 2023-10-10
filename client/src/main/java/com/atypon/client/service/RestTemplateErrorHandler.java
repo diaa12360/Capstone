@@ -10,13 +10,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.ExtractingResponseErrorHandler;
 import org.springframework.web.client.ResponseErrorHandler;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 @Component
 public class RestTemplateErrorHandler implements ResponseErrorHandler {
-//    @Autowired
-    private DefaultResponseErrorHandler defaultResponseErrorHandler = new ExtractingResponseErrorHandler();
+    //    @Autowired
+    private final DefaultResponseErrorHandler defaultResponseErrorHandler = new ExtractingResponseErrorHandler();
 
     @Override
     public boolean hasError(ClientHttpResponse response) throws IOException {
@@ -25,7 +26,7 @@ public class RestTemplateErrorHandler implements ResponseErrorHandler {
 
     @Override
     public void handleError(ClientHttpResponse response) throws IOException {
-        if (response.getStatusCode() != HttpStatus.BAD_REQUEST) {
+        if (response.getStatusCode() != HttpStatus.BAD_REQUEST ) {
             defaultResponseErrorHandler.handleError(response);
             return;
         }
@@ -37,6 +38,7 @@ public class RestTemplateErrorHandler implements ResponseErrorHandler {
                                     StandardCharsets.UTF_8)
                     );
         } catch (ParseException e) {
+            System.out.println();
             throw new NodeServerException(e.getMessage());
         }
         String type = (String) object.get("type");
@@ -47,7 +49,9 @@ public class RestTemplateErrorHandler implements ResponseErrorHandler {
             throw new DocumentException(message);
         else if (type.contains("Collection"))
             throw new CollectionException(message);
-        else
+        else if (response.getStatusCode().is4xxClientError()) {
+            System.out.println("response");
+        } else
             defaultResponseErrorHandler.handleError(response);
 
     }

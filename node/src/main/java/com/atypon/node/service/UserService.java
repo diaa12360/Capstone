@@ -17,13 +17,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
+import java.io.*;
+import java.util.*;
 
 @Component
 @Service
@@ -64,6 +59,21 @@ public class UserService {
     }
 
     public List<Document> findAll(String collectionName, String property, String value) {
+        if (property.equals("null") && value.equals("null") || value == null) {
+            Collection collection = new Collection();
+            collection.setDatabaseName(indexCash.getDatabaseName());
+            collection.setName(collectionName);
+            File file = new File(collection.getPath());
+            List<Document> documents = new ArrayList<>();
+            for (File fileEntry : Objects.requireNonNull(file.listFiles())) {
+                if (!fileEntry.isDirectory()) {
+                    documents.add(
+                            Document.createUsingPath(fileEntry.getPath())
+                    );
+                }
+            }
+            return documents;
+        }
         List<String> paths = indexCash.getPaths(collectionName, property, value);
         ArrayList<Document> documents = new ArrayList<>();
         for (String path : paths) {
@@ -84,7 +94,7 @@ public class UserService {
         }
         if (indexCash.getDatabaseName() == null || !document.getDatabaseName().equals(indexCash.getDatabaseName()))
             throw new DatabaseException("Please Connect to " + document.getDatabaseName() + " First!");
-        if(!propsIsOk(document)){
+        if (!propsIsOk(document)) {
             throw new DocumentException("You Entering Wrong Properties Please Check The Right One And Try Again!!");
         }
         String collectionPath = "Database/" + document.getDatabaseName() + File.separator + document.getCollectionName();
@@ -157,7 +167,6 @@ public class UserService {
     }
 
     public void deleteDocument(Document document) {
-        System.out.println(document.getPath());
         if (!new File(document.getPath()).exists())
             throw new DocumentException("Document Dose NOT Exists");
         if (indexCash.getIndex() == null || !document.getPath().contains(indexCash.getDatabaseName()))
@@ -181,9 +190,11 @@ public class UserService {
             throw new DatabaseException("Please Connect to " + collection.getDatabaseName() + " First!");
         for (Node n : NodeService.getNodes()) {
             if (n.getId() != -1)
-                restTemplate.delete(
+                restTemplate.exchange(
                         n.getAddress().concat("node/delete-collection"),
-                        collection, Collection.class
+                        HttpMethod.DELETE,
+                        new HttpEntity<>(collection),
+                        Collection.class
                 );
         }
         nodeService.deleteCollection(collection);
@@ -194,8 +205,7 @@ public class UserService {
             throw new DatabaseException("Please Connect to Database!!");
         if (!documentBefore.getDatabaseName().equals(indexCash.getDatabaseName()))
             throw new DatabaseException("Document Dose NOT Exists in \"" + indexCash.getDatabaseName() + "\" Database!!");
-        File file = new File(documentBefore.getPath());
-        if (file.canWrite()) {
+        if (documentBefore.canWrite()) {
             return nodeService.modifyDocumentForOthers(documentBefore, documentAfter);
         } else {
             HashMap<String, Document> mp = new HashMap<>();
@@ -224,7 +234,7 @@ public class UserService {
         } catch (IOException | ParseException e) {
             //ignored
         }
-        return new ArrayList<String>(object.keySet());
+        return new ArrayList<>(object.keySet());
     }
 
     public List<String> getCollections() {
@@ -247,10 +257,10 @@ public class UserService {
     }
 
     public String getProps(String collectionName) {
-        Collection collection = new Collection();
         if (indexCash.getDatabaseName() == null) {
             throw new DatabaseException("Please Connect to Database First!!");
         }
+        Collection collection = new Collection();
         collection.setDatabaseName(indexCash.getDatabaseName());
         collection.setName(collectionName);
         return collection.loadProps();

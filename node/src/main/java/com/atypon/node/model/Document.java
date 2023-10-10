@@ -12,6 +12,7 @@ import org.json.simple.parser.ParseException;
 import java.io.*;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.util.Objects;
 import java.util.Set;
 
@@ -22,17 +23,6 @@ public class Document implements Serializable {
     private JSONObject data;
     private String collectionName;
     private String databaseName;
-
-
-    public Document(String databaseName, String collectionName, String data) {
-        setDatabaseName(databaseName);
-        setCollectionName(collectionName);
-        try {
-            setData((JSONObject) new JSONParser().parse(data));
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public Document(Document document) {
         this.id = document.getId();
@@ -98,7 +88,7 @@ public class Document implements Serializable {
     public JSONObject addData(String key, Object value) {
         JSONObject tempFile = read();
         tempFile.put(key, value);
-        if(readProps().get("key") == null){
+        if (readProps().get("key") == null) {
             throw new DocumentException("The Property: \"" + key + "\" Does NOT Exists in This Collection!");
         }
         try {
@@ -127,6 +117,8 @@ public class Document implements Serializable {
         // if the file is already exists.
         if (file.exists())
             throw new DocumentException("Document With ID: " + id + " is Already exists!!!!");
+        //prepare Data for null.
+        fillWithNullIfNoData();
         try (FileWriter fileWriter = new FileWriter(path);) {
             fileWriter.write(data.toJSONString());
             fileWriter.flush();
@@ -134,7 +126,25 @@ public class Document implements Serializable {
             throw new DocumentException("Check File path");
         }
         // if the node is the affinity node then set the file writable for it.
-        if (!amITheNode) file.setWritable(false);
+        if (!amITheNode) {
+            try {
+                RandomAccessFile raf = new RandomAccessFile(file, "rw");
+                FileChannel channel = raf.getChannel();
+                channel.lock();
+            } catch (FileNotFoundException e) {
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            file.setWritable(false);
+        }
+    }
+
+    private void fillWithNullIfNoData() {
+        JSONObject props = readProps();
+        for (String s : (Set<String>) props.keySet()) {
+            data.putIfAbsent(s, null);
+        }
     }
 
 
@@ -143,7 +153,11 @@ public class Document implements Serializable {
             id = ObjectIdGenerator.getNewID();
         for (String key : (Set<String>) readProps().keySet()) {
             if (key.equalsIgnoreCase("id")) {
-                data.put(key, id);
+                if (data.get(key) == null) {
+                    data.put(key, id);
+                } else {
+                    id = String.valueOf(data.get(key));
+                }
                 break;
             }
         }
@@ -164,5 +178,28 @@ public class Document implements Serializable {
         String collectionPath = "Database/" + getDatabaseName().concat(File.separator).concat(getCollectionName());
         MetadataFile metadata = new MetadataFile(collectionPath + "/metadata.json");
         return (JSONObject) metadata.readData().get("prop");
+    }
+
+    public boolean canWrite() {
+        boolean canWrite = false;
+        try {
+            RandomAccessFile raf = new RandomAccessFile(getPath(), "rw");
+            FileChannel channel = raf.getChannel();
+            FileLock lock = null;
+            try {
+                lock = channel.tryLock();
+                if (lock != null) {
+                    canWrite = true;
+                    lock.release(); // Release the lock
+                }
+            } catch (OverlappingFileLockException e) {
+                canWrite = false;
+            }
+        } catch (FileNotFoundException e) {
+            throw new DocumentException("Document Not Found!");
+        } catch (IOException e) {
+            throw new DocumentException("Something Wrong");
+        }
+        return canWrite && new File(getPath()).canWrite();
     }
 }

@@ -1,4 +1,4 @@
-package com.atypon.node.configuration;
+package com.atypon.node.jwt;
 
 import com.atypon.node.dao.UserDao;
 import jakarta.servlet.FilterChain;

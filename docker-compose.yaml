@@ -14,7 +14,7 @@ services:
   customer:
     build: ./client
     ports:
-      - "8080:8080"
+      - "8888:8888"
     depends_on:
       - bootstrap
     environment:

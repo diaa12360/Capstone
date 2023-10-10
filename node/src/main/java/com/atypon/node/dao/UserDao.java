@@ -8,17 +8,18 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collections;
+import java.util.Objects;
 
 @Repository
 public class UserDao {
 
     public UserDetails findUserByUsername(String username) {
+        if (Objects.equals(username, "node"))
+            return new User("node", "node", Collections.singleton(new SimpleGrantedAuthority("NODE")));
         MetadataFile usersFile = new MetadataFile("nodeFiles/users.json");
         usersFile.readData();
         JSONObject users = (JSONObject) usersFile.getData().get(username);
-        System.out.println(users);
         User user1 = null;
-        System.out.println(username + " " + users.get("password"));
         try {
             user1 =
                     new User(
@@ -27,7 +28,6 @@ public class UserDao {
         } catch (Exception e) {
             System.out.println("Ex");
         }
-        System.out.println("Hello");
         return user1;
     }
 }

@@ -4,7 +4,6 @@ import com.atypon.node.exception.CollectionException;
 import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.exception.DocumentException;
 import com.atypon.node.model.Collection;
-import com.atypon.node.model.Document;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -96,72 +95,10 @@ public class IndexCash {
         thirdMap.get(value).remove(documentPath);
     }
 
-    public void unIndexDocument(Document document) {
-        document.read();
-        JSONObject data = document.getData();
-        JSONParser parser = new JSONParser();
-        String collectionPath = document.getPath().substring(0, document.getPath().lastIndexOf('/'));
-        try {
-            JSONObject props = (JSONObject) ((JSONObject)
-                    parser.parse(
-                            new FileReader(
-                                    collectionPath.concat(File.separator).concat("/metadata.json")
-                            )
-                    )).get("prop");
-            for (String prop : (Set<String>) props.keySet()) {
-                Object value = data.get(prop);
-                deleteRecord(document.getDatabaseName(), document.getCollectionName(), prop, String.valueOf(value), document.getPath());
-            }
-        } catch (ParseException | IOException e) {
-            //TODO;
-            System.out.println("Error here 174");
-        }
-    }
-
-
-    public void indexDocument(Document document) {
-        JSONObject data = document.getData();
-        JSONParser parser = new JSONParser();
-        String collectionPath = (document.getPath().substring(0, document.getPath().lastIndexOf('/')));
-        try {
-            JSONObject props = (JSONObject) ((JSONObject)
-                    parser.parse(
-                            new FileReader(
-                                    collectionPath.concat(File.separator).concat("metadata.json")
-                            )
-                    )).get("prop");
-            for (String prop : (Set<String>) props.keySet()) {
-                Object value = data.get(prop);
-                addRecord(document.getDatabaseName(), document.getCollectionName(), prop, String.valueOf(value), document.getPath());
-            }
-        } catch (ParseException | IOException e) {
-            System.out.println("Error here 227");
-        }
-    }
-
     public void unIndexCollection(Collection collection) {
         if (!index.containsKey(collection.getName()))
             throw new CollectionException("Collection does not exists in this database");
         index.remove(collection.getName(), index.get(collection.getName()));
-    }
-
-    public void unIndexDatabase(String dbName) {
-        if (!databaseName.equals(dbName)) {
-            throw new DatabaseException("Connect to the database  first!!");
-        }
-        index = null;
-    }
-
-    public void unIndexValue(String documentPath, String collectionName, String prop, String value) {
-        if (!index.containsKey(collectionName))
-            throw new CollectionException("Collection does not exists in this database");
-        Map<String, HashMap<String, ArrayList<String>>> collectionMap = index.get(collectionName);
-        Map<String, ArrayList<String>> values = collectionMap.get(prop);
-        if (!values.containsKey(value)) {
-            throw new DocumentException("Value Dose Not exist!!");
-        }
-        ArrayList<String> paths = values.get(value);
-        paths.remove(documentPath);
     }
 
 

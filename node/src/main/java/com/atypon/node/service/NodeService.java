@@ -59,7 +59,9 @@ public class NodeService {
             for (String key : (Set<String>) allNodesInFile.keySet()) {
                 JSONObject nodeData = (JSONObject) allNodesInFile.get(key);
                 if (nodeData.get("name").equals(nodeName)) {
-                    nodeData.put("affinity", affinity.getAffinity() + 1);
+                    affinity.setAffinity(affinity.getAffinity() + 1);
+                    nodeData.put("affinity", affinity.getAffinity());
+                    allNodesInFile.put(key, nodeData);
                 }
             }
             otherNodes.write(allNodesInFile);
@@ -68,7 +70,8 @@ public class NodeService {
 
     public void createCollection(Collection collectionData) {
         collectionData.createCollection();
-        indexCash.fillCollection(collectionData.getPath(), collectionData.getName());
+        if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(collectionData.getDatabaseName()))
+            indexCash.fillCollection(collectionData.getPath(), collectionData.getName());
     }
 
     public void createDatabase(String name) {
@@ -91,10 +94,8 @@ public class NodeService {
         JSONObject object = new JSONObject();
         try {
             object = (JSONObject) parser.parse(new FileReader("Database/allDBs.json"));
-        } catch (IOException e) {
-            //TODO
-        } catch (ParseException e) {
-            //TODO
+        } catch (IOException | ParseException e) {
+            //ignore
         }
         object.put(dbName, "Database/" + dbName);
         try (FileWriter writer = new FileWriter("Database/allDBs.json")) {
@@ -114,8 +115,7 @@ public class NodeService {
         if (!file.exists()) {
             throw new DocumentException("Document Dose NOT Exists!!");
         }
-        // decrease affinity and send the new one to the other nodes
-        if (file.canWrite()) {
+        if (document.canWrite()) {
             nodeInfo.editData("affinity", (Long) nodeInfo.getData().get("affinity") - 1);
             RestTemplate restTemplate = new RestTemplate();
             for (Node n : nodes) {
@@ -129,7 +129,7 @@ public class NodeService {
             }
         }
         unIndexDocument(document);
-        if (file.setWritable(true)) {
+        if (file.setWritable(true, true)) {
             try {
                 Files.delete(Path.of(file.getPath()));
             } catch (IOException e) {
@@ -140,9 +140,10 @@ public class NodeService {
 
     public void decreaseAffinity(String nodeName) {
         JSONObject nodesData = otherNodes.getData();
+        System.out.println(nodeName);
         String affinityId = "";
         for (Node n : nodes) {
-            if (Objects.equals(n.getName(), nodeName)) {
+            if (n.getName().equals(nodeName)) {
                 affinityId = String.valueOf(n.getId());
                 n.setAffinity(n.getAffinity() - 1);
                 break;
@@ -151,7 +152,6 @@ public class NodeService {
         JSONObject affinityNode = (JSONObject) nodesData.get(affinityId);
         affinityNode.put("affinity", (Long) affinityNode.get("affinity") - 1);
         otherNodes.editData(affinityId, affinityNode);
-
     }
 
     public void deleteCollection(Collection collection) {
@@ -163,7 +163,7 @@ public class NodeService {
         }
     }
 
-    private static boolean deleteDirectory(File directory) {
+    private static void deleteDirectory(File directory) {
         if (directory.isDirectory()) {
             File[] files = directory.listFiles();
             if (files != null) {
@@ -176,7 +176,7 @@ public class NodeService {
                 }
             }
         }
-        return directory.delete();
+        directory.delete();
     }
 
     private void unIndexCollection(Collection collection) {
@@ -186,8 +186,8 @@ public class NodeService {
         JSONObject metaData = new JSONObject();
         try (FileReader reader = new FileReader(metadataPath);) {
             metaData = (JSONObject) parser.parse(reader);
-        } catch (ParseException | IOException e) {
-            //TODO
+        } catch (ParseException | IOException ignored) {
+            //ignored
         }
         try (FileWriter writer = new FileWriter(metadataPath);) {
             metaData.remove(collection.getName());
@@ -195,13 +195,12 @@ public class NodeService {
             writer.flush();
             indexCash.unIndexCollection(collection);
         } catch (IOException e) {
-            //TODO
+            //ignored
         }
     }
 
     public Document modifyDocumentForOthers(Document documentBefore, Document documentAfter) {
-        File file = new File(documentAfter.getPath());
-        if (file.canWrite()) {
+        if (documentAfter.canWrite()) {
             Document temp = new Document(documentBefore);
             temp.read();
             if (temp.getData().equals(documentBefore.getData())) {
@@ -233,7 +232,15 @@ public class NodeService {
 
     public Document modify(Document before, Document after) {
         reIndexDocument(before, after);
-        before.write(after.getData());
+        File file = new File(before.getPath());
+        if (!file.canWrite()) {
+            file.setWritable(true);
+            before.write(after.getData());
+            file.setWritable(false);
+        }
+        else {
+            before.write(after.getData());
+        }
         after.read();
         return after;
     }

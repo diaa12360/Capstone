@@ -28,21 +28,6 @@ public class UserService {
         this.headers = headers;
     }
 
-    //TODO, Make It just For admin
-    public User createAccount(User user) {
-        try {
-            return restTemplate.exchange(
-                    bootstrapUrl.concat("/user/create-account"),
-                    HttpMethod.POST,
-                    new HttpEntity<>(user, headers),
-                    User.class
-            ).getBody();
-        } catch (RestClientException e) {
-            throw new RuntimeException(e.getMessage());
-        }
-
-    }
-
     public String login(AuthRequest authRequest) {
         if (Objects.equals(nodeUrl, "") || nodeUrl == null) nodeUrl(authRequest.getUsername());
         authRequest.setPassword(Encryption.encrypt(authRequest.getPassword()));
@@ -51,7 +36,6 @@ public class UserService {
         if (token != null) {
             headers.setBearerAuth(token);
         } else
-            //TODO, Make it a new Exception
             throw new RuntimeException();
         return token;
     }
@@ -116,7 +100,6 @@ public class UserService {
         );
     }
 
-    //TODO, Implement this
     public Document modifyRecord(Document document) {
         return restTemplate.exchange(
                 nodeUrl.concat("/user/modify-document"),

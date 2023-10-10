@@ -66,7 +66,7 @@ public class MetadataFile {
             lock.release();
             channel.close();
             raf.close();
-            data = newData;
+            readData();
         } catch (IOException e) {
             throw new DocumentException("File Locked Or Not Found");
         }

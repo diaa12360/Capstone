@@ -41,7 +41,6 @@ public class BootstrappingService {
             fileWriter.flush();
             fileWriter.close();
 
-            System.out.println("updated");
             NodeService.updateNodeInfoFile();
             NodeService.updateOtherNodesFile();
             NodeService.updateAllNodes();
@@ -66,22 +65,15 @@ public class BootstrappingService {
             temp.put("password", user.getPassword());
             temp.put("role", user.getRole());
             temp.put("nodeAddress", user.getRole());
+            System.out.println(user);
             object.put(user.getUsername(), temp);
             FileWriter fileWriter = new FileWriter("nodeFiles/users.json");
             fileWriter.write(object.toJSONString());
             fileWriter.flush();
             fileWriter.close();
-        }
-        catch (IOException | ParseException e){
+        } catch (IOException | ParseException e) {
 
         }
         return user;
-
-    }
-
-    private static File fileWithDirectoryAssurance(String directory, String filename) {
-        File dir = new File(directory);
-        if (!dir.exists()) dir.mkdirs();
-        return new File(directory + File.separator + filename);
     }
 }
