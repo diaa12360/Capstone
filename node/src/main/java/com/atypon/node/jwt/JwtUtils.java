@@ -1,4 +1,4 @@
-package com.atypon.node.configuration;
+package com.atypon.node.jwt;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;

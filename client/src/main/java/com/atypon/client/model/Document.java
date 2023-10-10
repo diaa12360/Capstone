@@ -6,6 +6,6 @@ import org.json.simple.JSONObject;
 public class Document {
     private String id;
     private JSONObject data;
-    private String path;
     private String collectionName;
+    private String databaseName;
 }

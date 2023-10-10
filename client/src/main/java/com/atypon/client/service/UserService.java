@@ -1,6 +1,5 @@
 package com.atypon.client.service;
 
-import com.atypon.client.exception.DatabaseException;
 import com.atypon.client.model.AuthRequest;
 import com.atypon.client.model.Collection;
 import com.atypon.client.model.Document;
@@ -9,10 +8,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -21,28 +20,12 @@ public class UserService {
     private String nodeUrl;
     private final RestTemplate restTemplate;
     private final HttpHeaders headers;
-    private String dbName;
 
     @Autowired
     public UserService(RestTemplate restTemplate, @Value("${bootstrap.url}") String bootstrapUrl, HttpHeaders headers) {
         this.bootstrapUrl = bootstrapUrl;
         this.restTemplate = restTemplate;
         this.headers = headers;
-    }
-
-    //TODO, Make It just For admin
-    public User createAccount(User user) {
-        try {
-            return restTemplate.exchange(
-                    bootstrapUrl.concat("/user/create-account"),
-                    HttpMethod.POST,
-                    new HttpEntity<>(user, headers),
-                    User.class
-            ).getBody();
-        } catch (RestClientException e) {
-            throw new RuntimeException(e.getMessage());
-        }
-
     }
 
     public String login(AuthRequest authRequest) {
@@ -53,7 +36,6 @@ public class UserService {
         if (token != null) {
             headers.setBearerAuth(token);
         } else
-            //TODO, Make it a new Exception
             throw new RuntimeException();
         return token;
     }
@@ -67,7 +49,6 @@ public class UserService {
 
     public String connectToDatabase(String dbName) {
         HttpEntity<String> entityReq = new HttpEntity<>(dbName, headers);
-        this.dbName = dbName;
         return restTemplate.exchange(
                 nodeUrl.concat("/user/connect-to-database?dbName=").concat(dbName),
                 HttpMethod.GET, entityReq, String.class).getBody();
@@ -119,12 +100,16 @@ public class UserService {
         );
     }
 
-    //TODO, Implement this
-    public Document modifyRecord() {
-        return new Document();
+    public Document modifyRecord(Document document) {
+        return restTemplate.exchange(
+                nodeUrl.concat("/user/modify-document"),
+                HttpMethod.PUT,
+                new HttpEntity<>(document, headers),
+                Document.class
+        ).getBody();
     }
 
-    public String getDataOne(String collectionName, String prop, Object value) {
+    public Document getDataOne(String collectionName, String prop, Object value) {
         return Objects.requireNonNull(
                 restTemplate.exchange(
                         nodeUrl
@@ -134,7 +119,52 @@ public class UserService {
                         new HttpEntity<>(headers),
                         Document.class
                 ).getBody()
-        ).getData().toJSONString();
+        );
     }
 
+    public List<Document> getAll(String collectionName, String prop, String value) {
+        return Objects.requireNonNull(
+                restTemplate.exchange(
+                        nodeUrl
+                                .concat("/user/find-all?collection=").concat(collectionName).concat("&")
+                                .concat("property=").concat(prop).concat("&").concat("value=").concat(String.valueOf(value)),
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        List.class
+                ).getBody()
+        );
+    }
+
+    public List<String> getDatabases() {
+        return Objects.requireNonNull(
+                restTemplate.exchange(
+                        nodeUrl.concat("/user/get-databases"),
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        List.class
+                ).getBody()
+        );
+    }
+
+    public List<String> getCollections() {
+        return Objects.requireNonNull(
+                restTemplate.exchange(
+                        nodeUrl.concat("/user/get-collections"),
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        List.class
+                ).getBody()
+        );
+    }
+
+    public String getProps(String collectionName) {
+        return Objects.requireNonNull(
+                restTemplate.exchange(
+                        nodeUrl.concat("/user/get-props?collectionName=").concat(collectionName),
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        String.class
+                ).getBody()
+        );
+    }
 }

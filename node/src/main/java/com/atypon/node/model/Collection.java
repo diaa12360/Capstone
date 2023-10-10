@@ -87,4 +87,14 @@ public class Collection {
         return "Database/".concat(databaseName).concat(File.separator).concat(name);
     }
 
+    public String loadProps() {
+        MetadataFile metadata = new MetadataFile(getPath() + "/metadata.json");
+        File file = new File(getPath());
+        if (!file.exists()) {
+            throw new CollectionException("Collection NOT Exists in Database: \"" + databaseName + "\"");
+        }
+        setProp((JSONObject) metadata.readData().get("prop"));
+        return prop.toJSONString();
+    }
+
 }

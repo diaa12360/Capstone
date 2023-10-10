@@ -5,34 +5,27 @@ import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.exception.DocumentException;
 import com.atypon.node.model.Collection;
 import com.atypon.node.model.Document;
+import com.atypon.node.model.MetadataFile;
 import com.atypon.node.model.Node;
-import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
+import java.io.*;
+import java.util.*;
 
 @Component
 @Service
 public class UserService {
     private final NodeService nodeService;
     private final RestTemplate restTemplate;
-    private IndexCash indexCash;
+    private final IndexCash indexCash;
 
     @Autowired
     public UserService(NodeService nodeService, RestTemplate restTemplate, IndexCash indexCash) {
@@ -47,7 +40,7 @@ public class UserService {
             JSONObject collections = (JSONObject) new JSONParser().parse(
                     new FileReader("Database/".concat(dbName).concat(File.separator).concat("metadata.json"))
             );
-            indexCash = new IndexCash(dbName);
+            indexCash.connect(dbName);
             for (String collection : (Set<String>) collections.keySet()) {
                 indexCash.fillCollection((String) collections.get(collection), collection);
             }
@@ -59,30 +52,59 @@ public class UserService {
     }
 
     public Document find(String collectionName, String property, String value) {
-        Document document = new Document();
-        List<String> paths = indexCash.getData(collectionName, property, value);
-        if (paths.isEmpty())
+        List<String> paths = indexCash.getPaths(collectionName, property, value);
+        if (paths == null || paths.isEmpty())
             throw new DocumentException("User Not Found");
-        document.setPath(paths.get(0));
-        document.read();
-        return document;
+        return Document.createUsingPath(paths.get(0));
     }
 
     public List<Document> findAll(String collectionName, String property, String value) {
-        List<String> paths = indexCash.getData(collectionName, property, value);
+        if (property.equals("null") && value.equals("null") || value == null) {
+            Collection collection = new Collection();
+            collection.setDatabaseName(indexCash.getDatabaseName());
+            collection.setName(collectionName);
+            File file = new File(collection.getPath());
+            List<Document> documents = new ArrayList<>();
+            for (File fileEntry : Objects.requireNonNull(file.listFiles())) {
+                if (!fileEntry.isDirectory()) {
+                    documents.add(
+                            Document.createUsingPath(fileEntry.getPath())
+                    );
+                }
+            }
+            return documents;
+        }
+        List<String> paths = indexCash.getPaths(collectionName, property, value);
         ArrayList<Document> documents = new ArrayList<>();
         for (String path : paths) {
-            Document document = new Document();
-            document.setPath(path);
-            document.read();
-            documents.add(document);
+            documents.add(Document.createUsingPath(path));
         }
         return documents;
     }
 
+    private boolean propsIsOk(Document document) {
+        Set<String> propsInCollection = document.readProps().keySet();
+        Set<String> propsInData = document.getData().keySet();
+        return propsInCollection.containsAll(propsInData);
+    }
+
     public Document createDocument(Document document) {
-        if (!document.getPath().contains(indexCash.getDatabaseName()))
+        if (document.getDatabaseName() == null && indexCash.getDatabaseName() != null) {
+            document.setDatabaseName(indexCash.getDatabaseName());
+        }
+        if (indexCash.getDatabaseName() == null || !document.getDatabaseName().equals(indexCash.getDatabaseName()))
             throw new DatabaseException("Please Connect to " + document.getDatabaseName() + " First!");
+        if (!propsIsOk(document)) {
+            throw new DocumentException("You Entering Wrong Properties Please Check The Right One And Try Again!!");
+        }
+        String collectionPath = "Database/" + document.getDatabaseName() + File.separator + document.getCollectionName();
+        MetadataFile metadata = new MetadataFile(collectionPath + "/metadata.json");
+        JSONObject props = (JSONObject) metadata.readData().get("prop");
+        for (String prop : (Set<String>) document.getData().keySet()) {
+            if (props.containsKey(prop)) continue;
+            throw new DocumentException("Please Enter The correct Data and properties!! like this ....");
+        }
+
         Node minAffinity = NodeService.getNodes().get(0);
         for (Node n : NodeService.getNodes()) {
             if (n.getAffinity() < minAffinity.getAffinity()) {
@@ -99,7 +121,6 @@ public class UserService {
                 );
         }
         minAffinity.setAffinity(minAffinity.getAffinity() + 1);
-//        indexCash.indexDocument(document);
         return document;
     }
 
@@ -146,7 +167,6 @@ public class UserService {
     }
 
     public void deleteDocument(Document document) {
-        System.out.println(document.getPath());
         if (!new File(document.getPath()).exists())
             throw new DocumentException("Document Dose NOT Exists");
         if (indexCash.getIndex() == null || !document.getPath().contains(indexCash.getDatabaseName()))
@@ -162,7 +182,7 @@ public class UserService {
         }
         nodeService.deleteDocument(document);
     }
-    //TODO, Reindexing
+
     public void deleteCollection(Collection collection) {
         if (!new File(collection.getPath()).exists())
             throw new CollectionException("Collection Dose NOT Exists");
@@ -170,69 +190,36 @@ public class UserService {
             throw new DatabaseException("Please Connect to " + collection.getDatabaseName() + " First!");
         for (Node n : NodeService.getNodes()) {
             if (n.getId() != -1)
-                restTemplate.delete(
+                restTemplate.exchange(
                         n.getAddress().concat("node/delete-collection"),
-                        collection, Collection.class
+                        HttpMethod.DELETE,
+                        new HttpEntity<>(collection),
+                        Collection.class
                 );
         }
         nodeService.deleteCollection(collection);
     }
 
-    private void unIndex(String documentPath, String collectionPath, String prop, String value) {
-        JSONParser parser = new JSONParser();
-        try {
-            File file = new File(collectionPath.concat(File.separator).concat("index").
-                    concat(File.separator).concat(prop).concat(".json"));
-            JSONObject index = (JSONObject) parser.parse(new FileReader(file));
-            index.remove(value, documentPath);
-            FileWriter fileWriter = new FileWriter(file);
-            fileWriter.write(index.toJSONString());
-            fileWriter.flush();
-            fileWriter.close();
-        } catch (ParseException | IOException e) {
-            e.printStackTrace();
-            //TODO
-        }
-    }
-
-
-    public void index(String documentPath, String collectionPath, String prop, String value) {
-        JSONParser parser = new JSONParser();
-        try {
-            File file = new File(collectionPath.concat(File.separator).concat("index").concat(File.separator).concat(prop).concat(".json"));
-            JSONObject index = (JSONObject) parser.parse(new FileReader(file));
-            JSONArray arr = (JSONArray) index.getOrDefault(value, new JSONArray());
-            arr.add(documentPath);
-            index.put(value, documentPath);
-            FileWriter fileWriter = new FileWriter(file);
-            fileWriter.write(index.toJSONString());
-            fileWriter.flush();
-            fileWriter.close();
-        } catch (ParseException | IOException e) {
-            System.out.println("Error here 206");
-            e.printStackTrace();
-            //TODO
-        }
-    }
-
-    //TODO Edit it And Create Unindexing Mechanisem
     public Document modifyDocument(Document documentAfter, Document documentBefore) {
         if (indexCash.getDatabaseName() == null)
             throw new DatabaseException("Please Connect to Database!!");
         if (!documentBefore.getDatabaseName().equals(indexCash.getDatabaseName()))
             throw new DatabaseException("Document Dose NOT Exists in \"" + indexCash.getDatabaseName() + "\" Database!!");
-        if (nodeService.modifyDocumentForOthers(documentAfter, documentBefore)) {
-            return documentAfter;
+        if (documentBefore.canWrite()) {
+            return nodeService.modifyDocumentForOthers(documentBefore, documentAfter);
         } else {
-            RestTemplate restTemplate = new RestTemplate();
             HashMap<String, Document> mp = new HashMap<>();
             mp.put("documentAfter", documentAfter);
             mp.put("documentBefore", documentBefore);
             for (Node n : NodeService.getNodes()) {
-                if (n.getId() != -1 &&
-                        (restTemplate.postForEntity(n.getAddress() + "node/modify-document",
-                                mp, HashMap.class).getStatusCode().equals(HttpStatus.ACCEPTED))) {
-                    return documentAfter;
+                if (n.getId() != -1) {
+                    Document document = restTemplate.postForEntity(
+                            n.getAddress() + "node/modify-document",
+                            mp,
+                            Document.class
+                    ).getBody();
+                    if (document != null)
+                        return documentAfter;
                 }
             }
             return documentBefore;
@@ -247,7 +234,7 @@ public class UserService {
         } catch (IOException | ParseException e) {
             //ignored
         }
-        return new ArrayList<String>(object.keySet());
+        return new ArrayList<>(object.keySet());
     }
 
     public List<String> getCollections() {
@@ -256,12 +243,26 @@ public class UserService {
         JSONParser parser = new JSONParser();
         JSONObject object = new JSONObject();
         try {
-            String PATH = "Database/".concat(indexCash.getDatabaseName()).concat("/metadata.json");
-            object = (JSONObject) parser.parse(new FileReader(PATH));
+            String path = "Database/".concat(indexCash.getDatabaseName()).concat("/metadata.json");
+            object = (JSONObject) parser.parse(new FileReader(path));
         } catch (IOException | ParseException e) {
             //ignored
         }
-        return new ArrayList<String>(object.keySet());
+        return new ArrayList<>(object.keySet());
     }
 
+    public Document modifyDocument(Document after) {
+        Document currentDocument = Document.createUsingPath(after.getPath());
+        return modifyDocument(after, currentDocument);
+    }
+
+    public String getProps(String collectionName) {
+        if (indexCash.getDatabaseName() == null) {
+            throw new DatabaseException("Please Connect to Database First!!");
+        }
+        Collection collection = new Collection();
+        collection.setDatabaseName(indexCash.getDatabaseName());
+        collection.setName(collectionName);
+        return collection.loadProps();
+    }
 }

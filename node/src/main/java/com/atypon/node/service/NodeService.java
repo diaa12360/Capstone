@@ -4,6 +4,7 @@ import com.atypon.node.exception.DatabaseException;
 import com.atypon.node.exception.DocumentException;
 import com.atypon.node.model.Collection;
 import com.atypon.node.model.Document;
+import com.atypon.node.model.MetadataFile;
 import com.atypon.node.model.Node;
 import lombok.Getter;
 import org.json.simple.JSONArray;
@@ -11,35 +12,39 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 @Component
 @Service
+
 public class NodeService {
     @Getter
     private static List<Node> nodes = updateAllNodes();
     @Getter
-    private static Document nodeInfo = updatenNodeInfoFile();
+    private static MetadataFile nodeInfo = updateNodeInfoFile();
     @Getter
-    private static Document otherNodes = updateOtherNodesFile();
-    @Autowired
-    private IndexCash indexCash;
+    private static MetadataFile otherNodes = updateOtherNodesFile();
 
+    private final IndexCash indexCash;
+
+    @Autowired
+    public NodeService(IndexCash indexCash) {
+        this.indexCash = indexCash;
+    }
 
     public void createFile(Document document, String nodeName) {
-        boolean amITheNode = nodeName.equals(nodeInfo.getData().get("name"));
+        boolean amITheNode = nodeName.equals(nodeInfo.readData().get("name"));
         document.createFile(amITheNode);
         indexDocument(document);
         if (amITheNode) {
             nodeInfo.editData("affinity", (Long) nodeInfo.getData().get("affinity") + 1);
-            nodeInfo.read();
         } else {
             Node affinity = null;
             for (Node n : nodes) {
@@ -48,11 +53,15 @@ public class NodeService {
                     break;
                 }
             }
-            JSONObject allNodesInFile = otherNodes.getData();
+            if (affinity == null)
+                throw new DatabaseException("Unexpected Error");
+            JSONObject allNodesInFile = otherNodes.readData();
             for (String key : (Set<String>) allNodesInFile.keySet()) {
                 JSONObject nodeData = (JSONObject) allNodesInFile.get(key);
                 if (nodeData.get("name").equals(nodeName)) {
-                    nodeData.put("affinity", affinity.getAffinity() + 1);
+                    affinity.setAffinity(affinity.getAffinity() + 1);
+                    nodeData.put("affinity", affinity.getAffinity());
+                    allNodesInFile.put(key, nodeData);
                 }
             }
             otherNodes.write(allNodesInFile);
@@ -61,6 +70,8 @@ public class NodeService {
 
     public void createCollection(Collection collectionData) {
         collectionData.createCollection();
+        if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(collectionData.getDatabaseName()))
+            indexCash.fillCollection(collectionData.getPath(), collectionData.getName());
     }
 
     public void createDatabase(String name) {
@@ -70,11 +81,9 @@ public class NodeService {
         file.mkdirs();
         addDatabaseToJSONFile(name);
         file = new File(file.getPath().concat(File.separator).concat("metadata.json"));
-        try {
-            FileWriter writer = new FileWriter(file);
+        try (FileWriter writer = new FileWriter(file)) {
             writer.write("{}");
             writer.flush();
-            writer.close();
         } catch (IOException e) {
             throw new DatabaseException("Check Create database");
         }
@@ -85,27 +94,20 @@ public class NodeService {
         JSONObject object = new JSONObject();
         try {
             object = (JSONObject) parser.parse(new FileReader("Database/allDBs.json"));
-        } catch (IOException e) {
-            //TODO
-        } catch (ParseException e) {
-            //TODO
+        } catch (IOException | ParseException e) {
+            //ignore
         }
         object.put(dbName, "Database/" + dbName);
-        try {
-            FileWriter writer = new FileWriter("Database/allDBs.json");
+        try (FileWriter writer = new FileWriter("Database/allDBs.json")) {
             writer.write(object.toJSONString());
             writer.flush();
-            writer.close();
-        } catch (IOException e) {
-            //TODO
+        } catch (IOException ignored) {
+            //ignored
         }
     }
-    //TODO unIndex
+
     public void deleteDatabase(String dbName) {
-        File file = new File("Database/" + dbName);
-        if (!file.delete()) {
-            throw new DatabaseException("Did not Deleted!!");
-        }
+        deleteDirectory(new File("Database/" + dbName));
     }
 
     public void deleteDocument(Document document) {
@@ -113,10 +115,8 @@ public class NodeService {
         if (!file.exists()) {
             throw new DocumentException("Document Dose NOT Exists!!");
         }
-        // decrease affinity and send the new one to the other nodes
-        if (file.canWrite()) {
+        if (document.canWrite()) {
             nodeInfo.editData("affinity", (Long) nodeInfo.getData().get("affinity") - 1);
-            nodeInfo.read();
             RestTemplate restTemplate = new RestTemplate();
             for (Node n : nodes) {
                 if (n.getId() != -1) {
@@ -129,16 +129,21 @@ public class NodeService {
             }
         }
         unIndexDocument(document);
-        if (file.setWritable(true) && !file.delete()) {
-            throw new DocumentException("Can not Delete this Document!!");
+        if (file.setWritable(true, true)) {
+            try {
+                Files.delete(Path.of(file.getPath()));
+            } catch (IOException e) {
+                throw new DocumentException("Can not Delete this Document!!");
+            }
         }
     }
 
     public void decreaseAffinity(String nodeName) {
         JSONObject nodesData = otherNodes.getData();
+        System.out.println(nodeName);
         String affinityId = "";
         for (Node n : nodes) {
-            if (Objects.equals(n.getName(), nodeName)) {
+            if (n.getName().equals(nodeName)) {
                 affinityId = String.valueOf(n.getId());
                 n.setAffinity(n.getAffinity() - 1);
                 break;
@@ -147,157 +152,215 @@ public class NodeService {
         JSONObject affinityNode = (JSONObject) nodesData.get(affinityId);
         affinityNode.put("affinity", (Long) affinityNode.get("affinity") - 1);
         otherNodes.editData(affinityId, affinityNode);
-        otherNodes.read();
-
     }
 
     public void deleteCollection(Collection collection) {
         String path = "Database/".concat(collection.getDatabaseName()).concat(File.separator).concat(collection.getName());
         File file = new File(path);
         unIndexCollection(collection);
-        if (!file.delete()) {
-            throw new DatabaseException("Did not Deleted!!");
+        if (file.setWritable(true)) {
+            deleteDirectory(file);
         }
+    }
+
+    private static void deleteDirectory(File directory) {
+        if (directory.isDirectory()) {
+            File[] files = directory.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isDirectory()) {
+                        deleteDirectory(file);
+                    } else {
+                        file.delete();
+                    }
+                }
+            }
+        }
+        directory.delete();
     }
 
     private void unIndexCollection(Collection collection) {
         JSONParser parser = new JSONParser();
         String dbPath = collection.getPath().substring(0, collection.getPath().lastIndexOf('/'));
         String metadataPath = dbPath.concat(File.separator).concat("/metadata.json");
-        try {
-            JSONObject metaData = (JSONObject) parser.parse(new FileReader(metadataPath));
+        JSONObject metaData = new JSONObject();
+        try (FileReader reader = new FileReader(metadataPath);) {
+            metaData = (JSONObject) parser.parse(reader);
+        } catch (ParseException | IOException ignored) {
+            //ignored
+        }
+        try (FileWriter writer = new FileWriter(metadataPath);) {
             metaData.remove(collection.getName());
-            FileWriter writer = new FileWriter(metadataPath);
             writer.write(metaData.toJSONString());
             writer.flush();
-            writer.close();
             indexCash.unIndexCollection(collection);
-        } catch (ParseException | IOException e) {
-            //TODO
+        } catch (IOException e) {
+            //ignored
         }
     }
 
-    public boolean modifyDocumentForOthers(Document documentAfter, Document documentBefore) {
-        File file = new File(documentAfter.getPath());
-        if (file.canWrite()) {
-            Document temp = new Document(documentBefore.getPath());
+    public Document modifyDocumentForOthers(Document documentBefore, Document documentAfter) {
+        if (documentAfter.canWrite()) {
+            Document temp = new Document(documentBefore);
             temp.read();
             if (temp.getData().equals(documentBefore.getData())) {
-                temp.write(documentAfter.getData());
-                sendModification(documentAfter);
-                return true;
+                Document document = modify(documentBefore, documentAfter);
+                sendModification(documentBefore, documentAfter);
+                return document;
             } else {
-                return false;
+                throw new DocumentException("Your data are NOT Updated, Try Again!!");
             }
         }
-        return false;
+        return null;
     }
 
-    //TODO, Implement this
-    private void sendModification(Document documentAfter) {
+    private void sendModification(Document before, Document after) {
+        HashMap<String, Document> mp = new HashMap<>();
+        mp.put("after", after);
+        mp.put("before", before);
+        RestTemplate restTemplate = new RestTemplate();
+        for (Node n : NodeService.getNodes()) {
+            if (n.getId() != -1) {
+                restTemplate.postForEntity(
+                        n.getAddress() + "node/modify",
+                        mp,
+                        Document.class
+                ).getBody();
+            }
+        }
+    }
+
+    public Document modify(Document before, Document after) {
+        reIndexDocument(before, after);
+        File file = new File(before.getPath());
+        if (!file.canWrite()) {
+            file.setWritable(true);
+            before.write(after.getData());
+            file.setWritable(false);
+        }
+        else {
+            before.write(after.getData());
+        }
+        after.read();
+        return after;
+    }
+
+    private void reIndexDocument(Document before, Document after) {
+        JSONObject props = before.readProps();
+        JSONObject dataBefore = before.getData();
+        JSONObject dataAfter = after.getData();
+        for (String prop : (Set<String>) props.keySet()) {
+            Object value1 = dataBefore.get(prop);
+            Object value2 = dataAfter.get(prop);
+            if (value1.equals(value2)) continue;
+            unIndex(before, prop, value1.toString());
+            index(after, prop, value2.toString());
+        }
 
     }
 
     private void unIndexDocument(Document document) {
         document.read();
         JSONObject data = document.getData();
+        JSONObject props = document.readProps();
+        for (String prop : (Set<String>) props.keySet()) {
+            Object value = data.get(prop);
+            unIndex(document, prop, value.toString());
+        }
+    }
+
+    private void unIndex(Document document, String prop, String value) {
         JSONParser parser = new JSONParser();
-        String collectionPath = document.getPath().substring(0, document.getPath().lastIndexOf('/'));
-        try {
-            JSONObject props = (JSONObject) ((JSONObject)
-                    parser.parse(
-                            new FileReader(
-                                    collectionPath.concat(File.separator).concat("/metadata.json")
-                            )
-                    )).get("prop");
-            for (String prop : (Set<String>) props.keySet()) {
-                Object value = data.get(prop);
-                unIndex(document.getPath(), collectionPath, prop, value.toString());
+        File file = new File(
+                document.getPath().substring(0, document.getPath().lastIndexOf("/"))
+                        .concat(File.separator).concat("index").concat(File.separator)
+                        .concat(prop).concat(".json"));
+        JSONObject index = new JSONObject();
+        try (FileReader reader = new FileReader(file)) {
+            index = ((JSONObject) parser.parse(reader));
+        } catch (ParseException | IOException ignored) {
+            ignored.printStackTrace();
+            System.out.println("268");
+        }
+        try (FileWriter writer = new FileWriter(file);) {
+            String path = document.getPath();
+            ArrayList<String> paths = (ArrayList<String>) index.get(value);
+            if (paths == null) {
+                return;
             }
-        } catch (ParseException | IOException e) {
-            //TODO
-            System.out.println("Error here 174");
+            if (paths.isEmpty()) {
+                return;
+            }
+            paths.remove(path);
+            if (paths.isEmpty())
+                index.remove(value);
+            else {
+                index.put(value, paths);
+            }
+            writer.write(index.toJSONString());
+            writer.flush();
+        } catch (IOException ignored) {
+            ignored.printStackTrace();
         }
-//        if (indexCash.getDatabaseName().equals(document.getDatabaseName()))
-//            indexCash.unIndexDocument(document);
-    }
-
-    private void unIndex(String documentPath, String collectionPath, String prop, String value) {
-        JSONParser parser = new JSONParser();
-        try {
-            File file = new File(collectionPath.concat(File.separator).concat("index").
-                    concat(File.separator).concat(prop).concat(".json"));
-            JSONObject index = (JSONObject) parser.parse(new FileReader(file));
-            index.remove(value, documentPath);
-            FileWriter fileWriter = new FileWriter(file);
-            fileWriter.write(index.toJSONString());
-            fileWriter.flush();
-            fileWriter.close();
-            if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(collectionPath.split("/")[1]))
-                indexCash.deleteRecord(
-                        documentPath.split("/")[1],
-                        collectionPath.split("/")[2],
-                        prop,
-                        value,
-                        documentPath
-                );
-        } catch (ParseException | IOException e) {
-        }
+        if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(document.getDatabaseName()))
+            indexCash.deleteRecord(
+                    document.getDatabaseName(),
+                    document.getCollectionName(),
+                    prop,
+                    value,
+                    document.getPath()
+            );
     }
 
 
-    public void index(String documentPath, String collectionPath, String prop, String value) {
+    public void index(Document document, String prop, String value) {
         JSONParser parser = new JSONParser();
-        try {
-            File file = new File(collectionPath.concat(File.separator).concat("index").concat(File.separator).concat(prop).concat(".json"));
-            JSONObject index = (JSONObject) parser.parse(new FileReader(file));
+        File file = new File(
+                "Database/".concat(document.getDatabaseName())
+                        .concat(File.separator).concat(document.getCollectionName())
+                        .concat(File.separator).concat("index").concat(File.separator)
+                        .concat(prop).concat(".json"));
+        JSONObject index = new JSONObject();
+        try (FileReader reader = new FileReader(file);) {
+            index = (JSONObject) parser.parse(reader);
             JSONArray arr = (JSONArray) index.getOrDefault(value, new JSONArray());
-            arr.add(documentPath);
+            arr.add(document.getPath());
             index.put(value, arr);
-            FileWriter fileWriter = new FileWriter(file);
-            fileWriter.write(index.toJSONString());
-            fileWriter.flush();
-            fileWriter.close();
-            if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(collectionPath.split("/")[1]))
-                indexCash.addRecord(
-                        documentPath.split("/")[1],
-                        collectionPath.split("/")[2],
-                        prop,
-                        value,
-                        documentPath
-                );
         } catch (ParseException | IOException e) {
-            System.out.println("Error here 206");
+            e.printStackTrace();
         }
+        try (FileWriter writer = new FileWriter(file);) {
+            writer.write(index.toJSONString());
+            writer.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (indexCash.getDatabaseName() != null && indexCash.getDatabaseName().equals(document.getDatabaseName()))
+            indexCash.addRecord(
+                    document.getDatabaseName(),
+                    document.getCollectionName(),
+                    prop,
+                    value,
+                    document.getPath()
+            );
+
     }
 
     public void indexDocument(Document document) {
         JSONObject data = document.getData();
-        JSONParser parser = new JSONParser();
-        String collectionPath = (document.getPath().substring(0, document.getPath().lastIndexOf('/')));
-        try {
-            JSONObject props = (JSONObject) ((JSONObject)
-                    parser.parse(
-                            new FileReader(
-                                    collectionPath.concat(File.separator).concat("metadata.json")
-                            )
-                    )).get("prop");
-            for (String prop : (Set<String>) props.keySet()) {
-                Object value = data.get(prop);
-                index(document.getPath(), collectionPath, prop, String.valueOf(value));
-            }
-
-        } catch (ParseException | IOException e) {
-            System.out.println("Error here 227");
+        JSONObject props = document.readProps();
+        for (String prop : (Set<String>) props.keySet()) {
+            Object value = data.get(prop);
+            index(document, prop, String.valueOf(value));
         }
     }
 
     public static List<Node> updateAllNodes() {
         List<Node> nodeList = new ArrayList<>();
-        Document nodeInfo = new Document("nodeFiles/nodeInfo.json");
-        Document otherNodes = new Document("nodeFiles/otherNodes.json");
-        JSONObject thisNode = nodeInfo.read();
-        JSONObject other = otherNodes.read();
+        MetadataFile nodeInfo = new MetadataFile("nodeFiles/nodeInfo.json");
+        MetadataFile otherNodes = new MetadataFile("nodeFiles/otherNodes.json");
+        JSONObject thisNode = nodeInfo.readData();
+        JSONObject other = otherNodes.readData();
         if (thisNode == null || other == null)
             return nodeList;
         for (String key : (Set<String>) other.keySet()) {
@@ -319,26 +382,25 @@ public class NodeService {
         return nodeList;
     }
 
-    public static Document updatenNodeInfoFile() {
-        Document document = new Document();
-        document.setPath("nodeFiles/nodeInfo.json");
+    public static MetadataFile updateNodeInfoFile() {
+        MetadataFile temp = new MetadataFile("nodeFiles/nodeInfo.json");
+        temp.readData();
         File file = new File("nodeFiles");
         file.mkdir();
-        if (document.read() == null)
+        if (temp.readData() == null)
             System.out.println("null");
-        nodeInfo = document;
-        return document;
+        nodeInfo = temp;
+        return temp;
     }
 
-    public static Document updateOtherNodesFile() {
-        Document document = new Document();
-        document.setPath("nodeFiles/otherNodes.json");
+    public static MetadataFile updateOtherNodesFile() {
+        MetadataFile document = new MetadataFile("nodeFiles/otherNodes.json");
+        document.readData();
         File file = new File("nodeFiles");
         file.mkdir();
-        if (document.read() == null)
+        if (document.readData() == null)
             System.out.println("null");
         otherNodes = document;
         return document;
     }
-    //TODO, Create Index Database
 }

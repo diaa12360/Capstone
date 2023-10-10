@@ -1,6 +1,7 @@
 package com.atypon.node.configuration;
 
 import com.atypon.node.dao.UserDao;
+import com.atypon.node.jwt.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 @RequiredArgsConstructor
 @Configuration
-public class SecurityConfig {
+public class SecurityConfiguration {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDao userDao;
@@ -33,8 +34,9 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/node/****", "/manage/**").permitAll()
-                        .anyRequest().authenticated())
+                        .requestMatchers("/***/login", "/node/***", "/manage/***").permitAll()
+                        .anyRequest().authenticated()
+                )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
@@ -48,7 +50,6 @@ public class SecurityConfig {
         return authenticationProvider;
     }
 
-    // TODO, Create Role Admin.
     @Bean
     public PasswordEncoder passwordEncoder() {
         return NoOpPasswordEncoder.getInstance();
